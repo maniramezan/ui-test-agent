@@ -232,11 +232,21 @@ struct StepRunner {
             query["includeUnattributed"] = includeUnattributed ? .bool(true) : nil
             return try await verdict(of: .object(query), timeout: .zero)
 
+        case "assert_session_reached":
+            let timeout = try arguments.optionalInt("timeout_ms", minimum: 0) ?? 0
+            try arguments.finish()
+            var reply = try await verdict(of: .object([:]), timeout: .milliseconds(timeout))
+            if reply.ok == true {
+                reply.message = "The app reached session \(session)"
+            } else {
+                reply.message =
+                    "No request reached session \(session) within \(timeout) ms. The app may have launched without the session key and be calling its real backend."
+            }
+            return reply
+
         case "assert_no_unmatched_requests":
             try arguments.finish()
-            let records = try await client.requests(session: session)
-            let unmatched = records.filter { $0.endpoint == nil && $0.rejection == nil }
-            return Self.unmatchedReply(unmatched, checked: records.count)
+            return try await verdict(of: .object(["unmatched": .bool(true), "times": .number(0)]), timeout: .zero)
 
         default:
             throw BridgeError.invalidArgument(name: "tool", reason: "moq.\(tool) is not a step of this build")
@@ -291,29 +301,5 @@ struct StepRunner {
                     reason: "present takes true or false; scheme, fingerprint_of and equals take a string")
             }
         }
-    }
-
-    private static func unmatchedReply(_ unmatched: [RequestRecord], checked: Int) -> ExtensionReply {
-        let rows: [JSONValue] = unmatched.map { record in
-            var row: [String: JSONValue] = [
-                "method": .string(record.method),
-                "path": .string(record.path),
-            ]
-            if let status = record.status {
-                row["status"] = .number(Double(status))
-            }
-            return .object(row)
-        }
-        let result = JSONValue.object(["checked": .number(Double(checked)), "unmatched": .array(rows)])
-        guard !unmatched.isEmpty else {
-            return ExtensionReply(ok: true, message: "No unmatched requests (\(checked) checked)", result: result)
-        }
-        let summary = unmatched.prefix(5).map { "\($0.method) \($0.path)" }
-        let more = unmatched.count > 5 ? ", …" : ""
-        return ExtensionReply(
-            ok: false,
-            message: "\(unmatched.count) request(s) matched no mocked endpoint: \(summary.joined(separator: ", "))\(more)",
-            result: result
-        )
     }
 }

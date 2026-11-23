@@ -21,6 +21,7 @@ public struct ExtensionHandler: Sendable {
         "assert_no_rejected_requests",
         "assert_no_unmatched_requests",
         "assert_all_requests_carry_session",
+        "assert_session_reached",
     ]
 
     private static let logger = Logger.forType(subsystem: "UITestAgent", ExtensionHandler.self)

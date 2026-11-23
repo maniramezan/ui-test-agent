@@ -168,18 +168,6 @@ struct ExtensionHandlerTests {
         #expect(await transport.sent.map(\.method) == ["PUT", "DELETE"])
     }
 
-    @Test("assert_no_unmatched_requests fails on rows with no endpoint")
-    func unmatched() async throws {
-        let history = #"""
-            [{"method":"GET","path":"/v1/missing","endpoint":null,"status":404,"timestamp":2},
-             {"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":200,"timestamp":1}]
-            """#
-        let transport = StubTransport(["GET /_admin/requests": [.status(200, body: history)]])
-        let reply = try await handler(transport).handle(stepRequest("assert_no_unmatched_requests"))
-        #expect(reply.ok == false)
-        #expect(reply.message == "1 request(s) matched no mocked endpoint: GET /v1/missing")
-    }
-
     @Test("A step before a session exists fails")
     func stepWithoutSession() async throws {
         let reply = try await handler(StubTransport([:])).handle(

@@ -162,6 +162,31 @@ struct RequestCheckTests {
         #expect(sent.first?.body == (try object(#"{"times":0,"scope":"sessionless"}"#)))
     }
 
+    @Test("assert_session_reached polls an unfiltered session query until a request arrives")
+    func sessionReached() async throws {
+        let (reply, sent) = try await run(
+            "assert_session_reached", arguments: #"{"timeout_ms":2000}"#,
+            replies: [
+                "POST /_admin/requests/query": [.status(200, body: Self.failing), .status(200, body: Self.passing)]
+            ])
+        #expect(reply.ok == true)
+        #expect(reply.message == "The app reached session S-1")
+        #expect(sent.count == 2)
+        #expect(sent.allSatisfy { $0.body == .object([:]) && $0.headers["X-Mock-Session"] == "S-1" })
+    }
+
+    @Test("assert_session_reached fails with a hint when nothing arrives")
+    func sessionNotReached() async throws {
+        let (reply, _) = try await run(
+            "assert_session_reached", arguments: #"{"timeout_ms":150}"#,
+            replies: ["POST /_admin/requests/query": [.status(200, body: Self.failing)]])
+        #expect(reply.ok == false)
+        #expect(
+            reply.message
+                == "No request reached session S-1 within 150 ms. The app may have launched without the session key and be calling its real backend."
+        )
+    }
+
     @Test("Without header capture the server's 409 reason fails the step")
     func headerCaptureOff() async throws {
         let (reply, _) = try await run(
@@ -194,17 +219,12 @@ struct RequestCheckTests {
         #expect(sent.isEmpty)
     }
 
-    @Test("assert_no_unmatched_requests ignores rejected rows, like the client's isUnmatched")
-    func unmatchedExcludesRejected() async throws {
-        let history = #"""
-            [{"method":"GET","path":"/v1/stale","endpoint":null,"status":404,
-              "rejection":{"kind":"session","code":"unknown_session","message":"Unknown X-Mock-Session 'x'"}},
-             {"method":"GET","path":"/v1/missing","endpoint":null,"status":404}]
-            """#
-        let (reply, _) = try await run(
+    @Test("assert_no_unmatched_requests sends the clients' unmatched query")
+    func noUnmatched() async throws {
+        let (reply, sent) = try await run(
             "assert_no_unmatched_requests",
-            replies: ["GET /_admin/requests": [.status(200, body: history)]])
+            replies: ["POST /_admin/requests/query": [.status(200, body: Self.failing)]])
         #expect(reply.ok == false)
-        #expect(reply.message == "1 request(s) matched no mocked endpoint: GET /v1/missing")
+        #expect(sent.first?.body == (try object(#"{"unmatched":true,"times":0}"#)))
     }
 }

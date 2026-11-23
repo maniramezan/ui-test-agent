@@ -85,23 +85,6 @@ public struct EndpointRef: Sendable, Equatable {
     }
 }
 
-/// One row of `GET /_admin/requests`, limited to the fields the bridge reads. The full shape is
-/// in moqserver's RUNTIME_WORKFLOWS.md, "Asserting what the app sent".
-public struct RequestRecord: Decodable, Sendable, Equatable {
-    public struct Rejection: Decodable, Sendable, Equatable {
-        public var kind: String
-        public var code: String
-        public var message: String
-    }
-
-    public var method: String
-    public var path: String
-    public var endpoint: String?
-    public var status: Int?
-    public var timestamp: Double?
-    public var rejection: Rejection?
-}
-
 /// A server-side query verdict: `ok`, the server's message, and the whole response body
 /// (`matched`, `nearMisses`, `unattributed`, …) for the step's report.
 public struct QueryVerdict: Sendable, Equatable {
@@ -221,16 +204,6 @@ public struct AdminClient: Sendable {
 
     public func resetVariant(for endpoint: EndpointRef, session: String) async throws {
         try await call("DELETE", url: endpointURL(endpoint, subresource: "variant"), session: session)
-    }
-
-    /// This session's request history, oldest first.
-    public func requests(session: String) async throws -> [RequestRecord] {
-        let url = baseURL.appending(path: "_admin/requests")
-        let data = try await call("GET", url: url, session: session)
-        guard let records = try? JSONDecoder().decode([RequestRecord].self, from: data) else {
-            throw BridgeError.malformedResponse(url: url.absoluteString)
-        }
-        return records.reversed()
     }
 
     private func endpointURL(_ endpoint: EndpointRef, subresource: String) -> URL {

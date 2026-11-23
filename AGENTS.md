@@ -36,19 +36,18 @@ Rules that follow from this:
      returning launch-env keys amoo merges into app launches; release the session at flow end.
    - Codegen: emit `MoqClient` calls for XCUITest and Espresso/Compose; names and predicates match moqserver's
      clients exactly.
-   - The wire contract with amoo is amoo's `docs/flow-extensions.md` (protocol 1, amoo `b1fa7bc`): verbs
+   - The wire contract with amoo is amoo's `docs/flow-extensions.md` (protocol 1, amoo `2579744`): verbs
      `describe`, `flow_start`, `step`, `flow_end`, one JSON request on stdin and one reply on stdout. `describe` lists
      only implemented steps, so a flow using an unbuilt one fails before step 1. A planned `emit` verb drives codegen.
-   - moqserver's request assertions are frozen (server `58bb2e2`, clients `c2b59e2`): `POST /_admin/requests/query`,
+   - moqserver's request assertions are frozen (server `6b6c130`, clients `5b2ecf7`): `POST /_admin/requests/query`,
      `POST /_admin/requests/mark`, and `times` on the variant route. Specs: its `docs/ADMIN_API.md` ("Request
      queries"), `server/MoqTestSupport/README.md` and `clients/kotlin/README.md`.
    - Built: the four protocol verbs; attach (wait on the config's readiness path), one session per run, launch keys
-     returned as `launch_environment` plus `${moq_session}`; all eight steps. Starting moqserver is not built; the
+     returned as `launch_environment` plus `${moq_session}`; all nine steps. Starting moqserver is not built; the
      app's own serve script does that. `session start|end` and `config check` remain for use outside amoo.
    - Each request check sends the same query body as the `MoqClient` call of the same name, so a flow step and a
      generated test get the same verdict from the server. Keep it that way: never evaluate a predicate in the bridge.
-     The exception is `assert_no_unmatched_requests`, which mirrors the client's history filter (`endpoint` and
-     `rejection` both null).
+     `assert_no_unmatched_requests` sends `{"unmatched": true, "times": 0}`, which needs moqserver `8091415` or later.
    - Step arguments (snake_case; numbers and booleans may be strings after `${…}` substitution; unknown arguments
      fail the step):
      - `select_variant {endpoint, variant, operation?, times?}`, where `times` makes a one-shot override.
@@ -58,8 +57,11 @@ Rules that follow from this:
        `MoqHeaderExpectation`.
      - `assert_no_rejected_requests {since?}`.
      - `assert_all_requests_carry_session {claims?, include_unattributed?, since?}`.
+     - `assert_session_reached {timeout_ms?}` passes once any request reaches this run's session; put it right after
+       the app's launch. A launch without the session key sends the app to its real backend, and every other check
+       would then pass on an empty history. It sends an unfiltered query (`{}`), which has no `MoqClient` helper yet.
      - `since` is a mark name or Unix seconds on the server clock.
-   - `endpoint` is a moqserver endpoint key as `GET /_admin/endpoints` lists it. From moqserver `92f4ff6` a
+   - `endpoint` is a moqserver endpoint key as `GET /_admin/endpoints` lists it. From moqserver `543bd37` a
      trailing-slash difference resolves, and an unknown key answers 400 with the closest key, which fails the
      step, so a `times: 0` check can't pass on a typo. Older servers silently match nothing.
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
@@ -98,7 +100,7 @@ AMOO_EXTENSION_PATH=$PWD/.build/debug amoo flow <flow.amoo.json> --output-dir <d
 
 A flow made only of `moq.*` steps needs no device, which makes it the quickest end-to-end check. Run it against
 `moqserver serve --project <bundle> --port <port> --capture-request-headers` on a spare port. Header capture needs
-moqserver `bc037ea` or later; an older build exits with "Unknown option". Logs go to the unified log under
+moqserver `2957465` or later; an older build exits with "Unknown option". Logs go to the unified log under
 subsystem `UITestAgent`, so stdout stays JSON only.
 
 ## Conventions
