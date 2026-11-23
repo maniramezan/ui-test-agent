@@ -16,8 +16,11 @@ public struct ExtensionHandler: Sendable {
         "activate_scenario",
         "select_variant",
         "reset_variant",
-        "assert_no_unmatched_requests",
+        "mark",
+        "assert_request",
         "assert_no_rejected_requests",
+        "assert_no_unmatched_requests",
+        "assert_all_requests_carry_session",
     ]
 
     private static let logger = Logger.forType(subsystem: "UITestAgent", ExtensionHandler.self)
@@ -139,9 +142,13 @@ public struct ExtensionHandler: Sendable {
             auth: try ResolvedAdminAuth(config.server.adminAuth, environment: environment),
             transport: transport
         )
-        var reply = try await StepRunner(client: client, session: state.sessionId)
-            .run(tool: step.tool, arguments: StepArguments(step.arguments ?? [:]))
-        reply.state = state
+        var runner = StepRunner(
+            client: client, session: state.sessionId, marks: state.marks ?? [:])
+        var reply = try await runner.run(
+            tool: step.tool, arguments: StepArguments(step.arguments ?? [:]))
+        var updated = state
+        updated.marks = runner.marks.isEmpty ? nil : runner.marks
+        reply.state = updated
         return reply
     }
 

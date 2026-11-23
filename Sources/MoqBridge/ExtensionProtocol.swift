@@ -51,6 +51,19 @@ public struct BridgeState: Codable, Sendable, Equatable {
     public var port: Int
     public var platform: Platform
     public var sessionId: String
+    /// `moq.mark` names → server timestamps, for later steps' `since`.
+    public var marks: [String: Double]?
+
+    public init(
+        configPath: String, port: Int, platform: Platform, sessionId: String,
+        marks: [String: Double]? = nil
+    ) {
+        self.configPath = configPath
+        self.port = port
+        self.platform = platform
+        self.sessionId = sessionId
+        self.marks = marks
+    }
 }
 
 /// One request from amoo's flow-extension protocol, version 1 (mobile-testing docs/flow-extensions.md).

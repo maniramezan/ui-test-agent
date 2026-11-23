@@ -102,6 +102,14 @@ public struct RequestRecord: Decodable, Sendable, Equatable {
     public var rejection: Rejection?
 }
 
+/// A server-side query verdict: `ok`, the server's message, and the whole response body
+/// (`matched`, `nearMisses`, `unattributed`, …) for the step's report.
+public struct QueryVerdict: Sendable, Equatable {
+    public var ok: Bool
+    public var message: String?
+    public var body: JSONValue
+}
+
 /// The moqserver admin routes the bridge needs, as documented in moqserver's ADMIN_API.md.
 public struct AdminClient: Sendable {
     private static let logger = Logger.forType(subsystem: "UITestAgent", AdminClient.self)
@@ -168,11 +176,47 @@ public struct AdminClient: Sendable {
         try await call("PUT", url: url, session: session, json: ["name": name])
     }
 
-    public func selectVariant(_ variant: String, for endpoint: EndpointRef, session: String)
-        async throws
-    {
+    /// Overrides the endpoint's variant in this session; with `times`, only for that many
+    /// requests that reach variant selection, after which normal selection resumes.
+    public func selectVariant(
+        _ variant: String, for endpoint: EndpointRef, times: Int? = nil, session: String
+    ) async throws {
+        struct Selection: Encodable {
+            let variant: String
+            let times: Int?
+        }
         let url = endpointURL(endpoint, subresource: "variant")
-        try await call("PUT", url: url, session: session, json: ["variant": variant])
+        try await call("PUT", url: url, session: session, json: Selection(variant: variant, times: times))
+    }
+
+    /// The server's current time, Unix seconds, for a later query's `since`.
+    public func mark(session: String) async throws -> Double {
+        let url = baseURL.appending(path: "_admin/requests/mark")
+        let data = try await call("POST", url: url, session: session)
+        guard let marked = try? JSONDecoder().decode([String: Double].self, from: data),
+            let timestamp = marked["timestamp"]
+        else {
+            throw BridgeError.malformedResponse(url: url.absoluteString)
+        }
+        return timestamp
+    }
+
+    /// Evaluates a request query on the server (`POST /_admin/requests/query`) and returns its
+    /// verdict as sent.
+    public func query(_ query: JSONValue, session: String) async throws -> QueryVerdict {
+        let url = baseURL.appending(path: "_admin/requests/query")
+        let data = try await call("POST", url: url, session: session, json: query)
+        guard let body = try? JSONDecoder().decode(JSONValue.self, from: data),
+            case .object(let fields) = body,
+            case .bool(let ok) = fields["ok"]
+        else {
+            throw BridgeError.malformedResponse(url: url.absoluteString)
+        }
+        var message: String?
+        if case .string(let text) = fields["message"] {
+            message = text
+        }
+        return QueryVerdict(ok: ok, message: message, body: body)
     }
 
     public func resetVariant(for endpoint: EndpointRef, session: String) async throws {
@@ -202,7 +246,7 @@ public struct AdminClient: Sendable {
     }
 
     @discardableResult
-    private func call(_ method: String, url: URL, session: String, json: [String: String]? = nil)
+    private func call(_ method: String, url: URL, session: String, json: (any Encodable)? = nil)
         async throws -> Data
     {
         Self.logger.debugPublic("\(method) \(url.absoluteString) session=\(session)")

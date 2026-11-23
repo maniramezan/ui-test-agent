@@ -180,32 +180,6 @@ struct ExtensionHandlerTests {
         #expect(reply.message == "1 request(s) matched no mocked endpoint: GET /v1/missing")
     }
 
-    @Test("assert_no_rejected_requests passes on a clean history and fails on a rejection")
-    func rejected() async throws {
-        let clean = StubTransport([
-            "GET /_admin/requests": [
-                .status(200, body: #"[{"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":200}]"#)
-            ]
-        ])
-        let passed = try await handler(clean).handle(stepRequest("assert_no_rejected_requests"))
-        #expect(passed.ok == true)
-        #expect(passed.message == "No rejected requests (1 checked)")
-
-        let dirty = StubTransport([
-            "GET /_admin/requests": [
-                .status(
-                    200,
-                    body: #"[{"method":"GET","path":"/v1/me","endpoint":"GET /v1/me","status":400,"rejection":{"kind":"request_rule","code":"missing_required_header","message":"Header 'Authorization' is required"}}]"#
-                )
-            ]
-        ])
-        let failed = try await handler(dirty).handle(stepRequest("assert_no_rejected_requests"))
-        #expect(failed.ok == false)
-        #expect(
-            failed.message
-                == "1 request(s) rejected by moqserver: GET /v1/me (Header 'Authorization' is required)")
-    }
-
     @Test("A step before a session exists fails")
     func stepWithoutSession() async throws {
         let reply = try await handler(StubTransport([:])).handle(

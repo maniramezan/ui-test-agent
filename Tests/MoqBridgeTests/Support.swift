@@ -14,6 +14,7 @@ actor StubTransport: HTTPTransport {
         let method: String
         let path: String
         let headers: [String: String]
+        let body: JSONValue?
     }
 
     private var replies: [String: [Reply]]
@@ -27,7 +28,9 @@ actor StubTransport: HTTPTransport {
         let method = request.httpMethod ?? "GET"
         let url = try #require(request.url)
         let key = "\(method) \(url.path())"
-        sent.append(Sent(method: method, path: url.path(), headers: request.allHTTPHeaderFields ?? [:]))
+        let body = request.httpBody.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0) }
+        sent.append(
+            Sent(method: method, path: url.path(), headers: request.allHTTPHeaderFields ?? [:], body: body))
         var queue = replies[key] ?? []
         guard !queue.isEmpty else {
             throw URLError(.cannotConnectToHost)

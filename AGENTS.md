@@ -39,16 +39,29 @@ Rules that follow from this:
    - The wire contract with amoo is amoo's `docs/flow-extensions.md` (protocol 1, amoo `b1fa7bc`): verbs
      `describe`, `flow_start`, `step`, `flow_end`, one JSON request on stdin and one reply on stdout. `describe` lists
      only implemented steps, so a flow using an unbuilt one fails before step 1. A planned `emit` verb drives codegen.
-   - moqserver's request-record JSON (`requestHeaders`, `rejection`, `jwt-claims` add-on) is final as of moqserver
-     `bc037ea`; spec in its `docs/RUNTIME_WORKFLOWS.md`, "Asserting what the app sent". `MoqClient` assert names and
-     predicate shapes are not frozen yet; confirm with moqserver before emitting them.
-   - Built so far: the four protocol verbs; attach (wait on the config's readiness path), one session per run,
-     launch keys returned as `launch_environment` plus `${moq_session}`; steps `activate_scenario`, `select_variant`,
-     `reset_variant`, `assert_no_unmatched_requests`, `assert_no_rejected_requests`. The two asserts filter this
-     session's `GET /_admin/requests` themselves, so they don't see session-less or unknown-session rows, which land
-     in global history. Move them to moqserver's query endpoint once its assert API freezes. `mark`,
-     `assert_request` and `assert_all_requests_carry_session` wait for that freeze. Starting moqserver is not built;
-     the app's own serve script does that. `session start|end` and `config check` remain for use outside amoo.
+   - moqserver's request assertions are frozen (server `58bb2e2`, clients `c2b59e2`): `POST /_admin/requests/query`,
+     `POST /_admin/requests/mark`, and `times` on the variant route. Specs: its `docs/ADMIN_API.md` ("Request
+     queries"), `server/MoqTestSupport/README.md` and `clients/kotlin/README.md`.
+   - Built: the four protocol verbs; attach (wait on the config's readiness path), one session per run, launch keys
+     returned as `launch_environment` plus `${moq_session}`; all eight steps. Starting moqserver is not built; the
+     app's own serve script does that. `session start|end` and `config check` remain for use outside amoo.
+   - Each request check sends the same query body as the `MoqClient` call of the same name, so a flow step and a
+     generated test get the same verdict from the server. Keep it that way: never evaluate a predicate in the bridge.
+     The exception is `assert_no_unmatched_requests`, which mirrors the client's history filter (`endpoint` and
+     `rejection` both null).
+   - Step arguments (snake_case; numbers and booleans may be strings after `${…}` substitution; unknown arguments
+     fail the step):
+     - `select_variant {endpoint, variant, operation?, times?}`, where `times` makes a one-shot override.
+     - `mark {name}` stores the server time in the run state.
+     - `assert_request {endpoint, times?, headers?, claims?, since?, timeout_ms?}`. Each `headers` item is
+       `{name}` plus exactly one of `present` (bool), `scheme`, `fingerprint_of` or `equals`, one-to-one with
+       `MoqHeaderExpectation`.
+     - `assert_no_rejected_requests {since?}`.
+     - `assert_all_requests_carry_session {claims?, include_unattributed?, since?}`.
+     - `since` is a mark name or Unix seconds on the server clock.
+   - `endpoint` is a moqserver endpoint key as `GET /_admin/endpoints` lists it. From moqserver `92f4ff6` a
+     trailing-slash difference resolves, and an unknown key answers 400 with the closest key, which fails the
+     step, so a `times: 0` check can't pass on a typo. Older servers silently match nothing.
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
      `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
 2. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or
