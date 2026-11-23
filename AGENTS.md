@@ -1,0 +1,96 @@
+# ui-test-agent
+
+A UI test agent for iOS and Android apps, plus the bridge that lets [amoo](https://github.com/maniramezan/mobile-testing)
+flows drive a [moqserver](https://github.com/maniramezan/moqserver) mock server. Given a feature or screen, the agent
+reads the app's code, gets mock data, drives the app with amoo against an isolated moqserver session, asserts UI state,
+requests and accessibility, and leaves a checked-in flow, a generated test, bundle changes and a compact JSON report.
+
+This file is the shared instruction set for any coding agent working in this repo.
+
+## Where things live
+
+| Repo | Owns | Knows about the others? |
+| --- | --- | --- |
+| [amoo](https://github.com/maniramezan/mobile-testing) | Device driving, flows, test generation, a general external-step hook (`prefix.step` → `amoo-ext-<prefix>`) | No |
+| [moqserver](https://github.com/maniramezan/moqserver) | Mock server, admin API, `MoqClient` (Swift, Kotlin), `moq-author` | No |
+| **ui-test-agent** (this repo) | `amoo-ext-moq`, the per-app config format, the agent + skills plugin, the eval | Yes: uses both, through their CLIs and public APIs only |
+| Each app under test | Its own per-app config, mock bundle, flows and tests | Uses this repo's tools |
+
+Rules that follow from this:
+
+- Never vendor or copy amoo or moqserver code or docs here. Call their CLIs and read their `--help`.
+- When this repo needs something from amoo or moqserver, ask that tool's owner for a feature framed as a general
+  capability that helps the tool's standalone users too, not as a ui-test-agent special case. Each tool designs and
+  ships it on its own terms; this repo adopts it once it lands.
+- **This repo is public and generic.** Never put an app's name, its config, mock data, flows, findings, local paths
+  or the names of agent sessions here, in code, docs, tests, examples or commit messages. App-specific material lives
+  in the app's own repo. Examples and tests use the fictional app in `examples/`.
+- App teams bring their gaps in amoo or moqserver here, or go straight to the owning tool.
+
+## Planned pieces
+
+1. **`amoo-ext-moq`** (Swift executable). amoo calls it for `moq.*` flow steps and for their generated test code:
+   - Steps: `moq.activate_scenario`, `moq.select_variant`, `moq.reset_variant`, `moq.mark`, `moq.assert_request`,
+     `moq.assert_no_rejected_requests`, `moq.assert_no_unmatched_requests`, `moq.assert_all_requests_carry_session`.
+   - Lifecycle: at flow start, attach to or start moqserver and create an isolated session (`POST /_admin/sessions`),
+     returning launch-env keys amoo merges into app launches; release the session at flow end.
+   - Codegen: emit `MoqClient` calls for XCUITest and Espresso/Compose; names and predicates match moqserver's
+     clients exactly.
+   - The wire contract with amoo is amoo's `docs/flow-extensions.md` (protocol 1, amoo `b1fa7bc`): verbs
+     `describe`, `flow_start`, `step`, `flow_end`, one JSON request on stdin and one reply on stdout. `describe` lists
+     only implemented steps, so a flow using an unbuilt one fails before step 1. A planned `emit` verb drives codegen.
+   - moqserver's request-record JSON (`requestHeaders`, `rejection`, `jwt-claims` add-on) is final as of moqserver
+     `bc037ea`; spec in its `docs/RUNTIME_WORKFLOWS.md`, "Asserting what the app sent". `MoqClient` assert names and
+     predicate shapes are not frozen yet; confirm with moqserver before emitting them.
+   - Built so far: the four protocol verbs; attach (wait on the config's readiness path), one session per run,
+     launch keys returned as `launch_environment` plus `${moq_session}`; steps `activate_scenario`, `select_variant`,
+     `reset_variant`, `assert_no_unmatched_requests`, `assert_no_rejected_requests`. The two asserts filter this
+     session's `GET /_admin/requests` themselves, so they don't see session-less or unknown-session rows, which land
+     in global history. Move them to moqserver's query endpoint once its assert API freezes. `mark`,
+     `assert_request` and `assert_all_requests_carry_session` wait for that freeze. Starting moqserver is not built;
+     the app's own serve script does that. `session start|end` and `config check` remain for use outside amoo.
+   - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
+     `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
+2. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or
+   attach moqserver, admin auth by reference, launch-env keys for base URL and session, sign-in profile, id catalog
+   and test target locations. Today it holds the server (port, admin host, readiness path, admin auth by env var
+   name) and per-platform launch keys; values may use `{{baseURL}}` (built from the platform's `appHost`, e.g.
+   `10.0.2.2` on an Android emulator) and `{{sessionId}}`. Add the other fields with the steps that use them.
+3. **The agent and lean skills**, packaged as a plugin. Discovery once; anything repeatable becomes an amoo flow that
+   runs on the CLI at no model cost. Two mock-data paths:
+   - Synthesize from the app's code or an OpenAPI spec with `moq-author`.
+   - Record real traffic on the device with [mobile-network-recorder](https://github.com/arjangconsulting/mobile-network-recorder)
+     (its `ios` and `android` submodules are the platform libraries), export a HAR, and import it with
+     `moq-author import har`.
+   - moqserver has no record or pass-through (proxy) mode, by the user's decision, and this repo doesn't propose
+     one. Recording belongs in the app, where it sees exactly what the app sends; moqserver stays "not a recorder".
+4. **Eval**: run the agent on the first targets and compare against doing them by hand (tokens, wall time, pass rate).
+
+## Commands
+
+```bash
+swift build
+swift test --parallel
+swift test --filter SessionLifecycleTests
+.build/debug/amoo-ext-moq config check --config examples/moq.json
+.build/debug/amoo-ext-moq session start --config <app-repo>/moq.json --platform android --port <port>
+.build/debug/amoo-ext-moq session end --config <app-repo>/moq.json --session <sessionId> --port <port>
+```
+
+In an amoo flow, point amoo at the local build and give the flow `moq_config` and `moq_port` vars:
+
+```bash
+AMOO_EXTENSION_PATH=$PWD/.build/debug amoo flow <flow.amoo.json> --output-dir <dir>
+```
+
+A flow made only of `moq.*` steps needs no device, which makes it the quickest end-to-end check. Run it against
+`moqserver serve --project <bundle> --port <port> --capture-request-headers` on a spare port. Header capture needs
+moqserver `bc037ea` or later; an older build exits with "Unknown option". Logs go to the unified log under
+subsystem `UITestAgent`, so stdout stays JSON only.
+
+## Conventions
+
+- Confirm a new convention (tag notation, first version, commit style, config file names) with the user before
+  creating it. Bare SemVer, no `v` prefix, once versions exist.
+- Never end a line of code with a comment; put it on its own line above.
+- Commit straight to `main` unless the user asks otherwise.

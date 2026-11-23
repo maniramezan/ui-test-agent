@@ -1,0 +1,30 @@
+{
+  "app": "sample",
+  "server": {
+    "port": 8080,
+    "adminHost": "127.0.0.1",
+    "readinessPath": "/_admin/endpoints",
+    "readinessTimeoutSeconds": 30,
+    "adminAuth": { "kind": "none" }
+  },
+  "platforms": {
+    "ios": {
+      "appHost": "127.0.0.1",
+      "requireSession": true,
+      "launchEnvironment": {
+        "APP_MOCK_BASE_URL": "{{baseURL}}",
+        "APP_MOCK_SESSION": "{{sessionId}}",
+        "APP_AUTH_EMULATOR_HOST": "127.0.0.1:9099"
+      }
+    },
+    "android": {
+      "appHost": "10.0.2.2",
+      "requireSession": false,
+      "launchEnvironment": {
+        "APP_MOCK_BASE_URL": "{{baseURL}}",
+        "APP_MOCK_SESSION": "{{sessionId}}",
+        "APP_AUTH_EMULATOR_HOST": "10.0.2.2:9099"
+      }
+    }
+  }
+}
