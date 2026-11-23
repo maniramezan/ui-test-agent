@@ -64,6 +64,9 @@ Rules that follow from this:
    - `endpoint` is a moqserver endpoint key as `GET /_admin/endpoints` lists it. From moqserver `543bd37` a
      trailing-slash difference resolves, and an unknown key answers 400 with the closest key, which fails the
      step, so a `times: 0` check can't pass on a typo. Older servers silently match nothing.
+   - Flows should set amoo's `"terminate_app_at_end": true` (amoo `638c4b8`): an app left running keeps sending its
+     released session id, and other runs' session checks on a shared server would see it. `flow_end` warns when amoo
+     reports `app_terminated: false`. A flow with no `moq.*` step declares `"extensions": ["moq"]` to get a session.
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
      `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
 2. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or

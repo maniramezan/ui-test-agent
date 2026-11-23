@@ -176,6 +176,18 @@ struct ExtensionHandlerTests {
         #expect(reply.message == BridgeError.noSession.errorDescription)
     }
 
+    @Test("flow_end warns when amoo reports the app wasn't ended")
+    func flowEndWarnsWhenAppStillRuns() async throws {
+        let state = String(decoding: try JSONEncoder().encode(Self.state), as: UTF8.self)
+        let warned = try await handler(StubTransport(["DELETE /_admin/sessions/S-1": [.status(200)]])).handle(
+            request(#"{"protocol":1,"verb":"flow_end","state":\#(state),"passed":true,"app_terminated":false}"#))
+        #expect(warned.ok == true)
+        #expect(warned.message?.contains("terminate_app_at_end") == true)
+        let quiet = try await handler(StubTransport(["DELETE /_admin/sessions/S-1": [.status(200)]])).handle(
+            request(#"{"protocol":1,"verb":"flow_end","state":\#(state),"passed":true,"app_terminated":true}"#))
+        #expect(quiet.message == "Released moqserver session S-1")
+    }
+
     @Test("flow_end releases the session, and is a no-op without one")
     func flowEnd() async throws {
         let transport = StubTransport(["DELETE /_admin/sessions/S-1": [.status(200)]])

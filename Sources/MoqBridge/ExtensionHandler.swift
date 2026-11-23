@@ -126,8 +126,12 @@ public struct ExtensionHandler: Sendable {
         }
         let config = try AppConfig.load(from: URL(filePath: state.configPath))
         try await lifecycle(config, port: state.port).end(sessionId: state.sessionId)
-        return ExtensionReply(
-            ok: true, message: "Released moqserver session \(state.sessionId)", state: state)
+        var message = "Released moqserver session \(state.sessionId)"
+        if request.appTerminated == false {
+            message +=
+                ". The app may still be running and sending this session id, which other runs' session checks would see; set \"terminate_app_at_end\": true in the flow."
+        }
+        return ExtensionReply(ok: true, message: message, state: state)
     }
 
     private func step(_ request: ExtensionRequest) async throws -> ExtensionReply {

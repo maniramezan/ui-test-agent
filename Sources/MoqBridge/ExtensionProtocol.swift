@@ -98,6 +98,20 @@ public struct ExtensionRequest: Decodable, Sendable {
     public var vars: [String: String]?
     public var step: Step?
     public var passed: Bool?
+    /// Sent with `flow_end` by amoo 638c4b8 and later: whether every app the run launched was ended
+    /// (`terminate_app_at_end`). nil from older amoo builds.
+    public var appTerminated: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case `protocol`
+        case verb
+        case run
+        case state
+        case vars
+        case step
+        case passed
+        case appTerminated = "app_terminated"
+    }
 }
 
 public struct ExtensionReply: Encodable, Sendable, Equatable {
