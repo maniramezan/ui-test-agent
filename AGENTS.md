@@ -79,7 +79,16 @@ Rules that follow from this:
    - Synthesize from the app's code or an OpenAPI spec with `moq-author`.
    - Record real traffic on the device with [mobile-network-recorder](https://github.com/arjangconsulting/mobile-network-recorder)
      (its `ios` and `android` submodules are the platform libraries), export a HAR, and import it with
-     `moq-author import har`.
+     `moq-author import har`. The loop runs without app-specific export code:
+     1. Launch with `APITRACE_HAR_FILE=1` (in `start_session`'s `environment`, `K=V,K2=V2`). On Android the app
+        also calls `APITraceHarFile.enableFromLaunchIntent(application)` once at startup. The recorder rewrites
+        `apitrace.har` after each exchange.
+     2. Run the scenario, then pull the file with amoo's `device_pull_app_file` (amoo `83ece1b`):
+        iOS `{"app_id": "com.example.app", "path": "tmp/apitrace.har", "timeout_ms": "5000"}`;
+        Android `{"app_id": "com.example.app", "container": "external", "path": "cache/apitrace.har",
+        "timeout_ms": "5000"}`. It lands in the flow's `--output-dir`.
+     3. `moq-author import har --project <bundle> --har-path <output-dir>/apitrace.har --infer-header-rules`,
+        then review the bundle diff before committing it in the app's repo.
    - moqserver has no record or pass-through (proxy) mode, by the user's decision, and this repo doesn't propose
      one. Recording belongs in the app, where it sees exactly what the app sends; moqserver stays "not a recorder".
 4. **Eval**: run the agent on the first targets and compare against doing them by hand (tokens, wall time, pass rate).
