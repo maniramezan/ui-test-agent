@@ -8,6 +8,7 @@ let package = Package(
     products: [
         .executable(name: "amoo-ext-moq", targets: ["AmooExtMoq"]),
         .executable(name: "amoo-ext-auth", targets: ["AmooExtAuth"]),
+        .executable(name: "uita", targets: ["Uita"]),
         .library(name: "MoqBridge", targets: ["MoqBridge"]),
     ],
     dependencies: [
@@ -43,6 +44,24 @@ let package = Package(
                 "AuthBridge",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
+        ),
+        .target(
+            name: "UitaKit",
+            dependencies: [
+                "ExtensionKit",
+                .product(name: "SwiftCommons", package: "SwiftCommons"),
+            ]
+        ),
+        .executableTarget(
+            name: "Uita",
+            dependencies: [
+                "UitaKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
+        .testTarget(
+            name: "UitaKitTests",
+            dependencies: ["UitaKit"]
         ),
         .testTarget(
             name: "AuthBridgeTests",

@@ -13,7 +13,7 @@ This file is the shared instruction set for any coding agent working in this rep
 | --- | --- | --- |
 | [amoo](https://github.com/maniramezan/mobile-testing) | Device driving, flows, test generation, a general external-step hook (`prefix.step` → `amoo-ext-<prefix>`) | No |
 | [moqserver](https://github.com/maniramezan/moqserver) | Mock server, admin API, `MoqClient` (Swift, Kotlin), `moq-author` | No |
-| **ui-test-agent** (this repo) | `amoo-ext-moq`, `amoo-ext-auth`, the per-app config format, the agent + skills plugin, the eval | Yes: uses both, through their CLIs and public APIs only |
+| **ui-test-agent** (this repo) | `amoo-ext-moq`, `amoo-ext-auth`, `uita`, the per-app config format, the agent + skills plugin, the eval | Yes: uses both, through their CLIs and public APIs only |
 | Each app under test | Its own per-app config, mock bundle, flows and tests | Uses this repo's tools |
 
 Rules that follow from this:
@@ -157,6 +157,29 @@ Rules that follow from this:
    - moqserver has no record or pass-through (proxy) mode, by the user's decision, and this repo doesn't propose
      one. Recording belongs in the app, where it sees exactly what the app sends; moqserver stays "not a recorder".
 5. **Eval**: run the agent on the first targets and compare against doing them by hand (tokens, wall time, pass rate).
+6. **`uita`** (Swift executable over the `UitaKit` library): what the agent, or a person, runs around amoo with no
+   model cost. It works on any flow, mocked or not.
+   - `uita lint <flow>… [--bundle <bundle.moqproj>] [--moq-author <command>] [--json]` checks flows without a
+     device. Errors exit 1; warnings don't. Run it from the directory amoo runs in. Rules:
+     - `terminate-app-at-end`: an app is launched and not ended (error with a mock session, else warning).
+     - `session-reached`: a mocked flow that launches an app has no `moq.assert_session_reached` (error), or runs
+       a request check before it (warning).
+     - `extension-not-started`: `moq_config`, `moq_port` or `auth_config` is set, but no step or `extensions`
+       entry starts that extension.
+     - `config-missing`: a config variable's path doesn't exist.
+     - `undefined-mark`: `since` names no earlier `moq.mark`.
+     - `unknown-endpoint` (with `--bundle`): an `endpoint` isn't in the bundle, read with
+       `moq-author endpoint list`; the message gives the closest key.
+     - `tap-outcome` (warning): a `tap_element` has no `expect_*` and the next step doesn't observe anything.
+     Add a rule when a mistake has cost a run; each one names what goes wrong, not a style.
+   - `uita repeat <flow> (--runs <n> | --failure-rate <p>) --output-dir <dir> [--runtime-id <id>]… [--amoo
+     <command>] [--json] [-- <amoo flow arguments>]` runs the flow n times with `amoo flow`, one worker per
+     runtime id in parallel, each run in `<dir>/run-NNN` with amoo's output in `amoo.log`. `--failure-rate`
+     works the count out: n ≥ ln(0.05) / ln(1 − p), at least 10 (0.2 → 14, 0.1 → 29). The summary gives the
+     pass rate, flow times, the failure rate the passes rule out, and failures grouped by step, tool and amoo's
+     `failure_kind`, never by message text. It also lists runs whose `moq-session.json` shows unmatched or
+     refused requests. Exits 1 unless every run passed.
+   - Not built yet: coverage, triage and the request renderer.
 
 ## Commands
 
@@ -166,6 +189,9 @@ swift test --parallel
 swift test --filter SessionLifecycleTests
 swift test --filter AuthHandlerTests
 .build/debug/amoo-ext-moq config check --config examples/moq.json
+(cd examples && ../.build/debug/uita lint flows/ios/*.amoo.json --bundle mocks/example.moqproj)
+(cd examples && ../.build/debug/uita repeat flows/ios/swipe-delete.moq.amoo.json --failure-rate 0.2 \
+  --runtime-id <id-1> --runtime-id <id-2> --output-dir <dir> -- --var moq_port=<port>)
 .build/debug/amoo-ext-moq session start --config <app-repo>/moq.json --platform android --port <port>
 .build/debug/amoo-ext-moq session end --config <app-repo>/moq.json --session <sessionId> --port <port>
 ```
