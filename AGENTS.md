@@ -91,16 +91,15 @@ Rules that follow from this:
      (`assert_session_reached`).
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
      `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
-2. **`amoo-ext-auth`** (Swift executable): account fixtures on an identity-provider emulator, for `auth.*` steps.
-   Firebase Auth emulator is the first provider; others go behind the same steps.
+2. **`amoo-ext-auth`** (Swift executable): account fixtures for `auth.*` steps. Two providers sit behind the same
+   steps: the Firebase Auth emulator (`firebase-emulator`), and the app backend's own test routes (`test-routes`).
    - Steps, each `{email}`: `auth.disable_user`, `auth.enable_user`, `auth.delete_user`, `auth.revoke_tokens`.
      An unknown email fails the step.
-   - Prerequisite, for these steps only: a running Firebase Auth emulator, which comes with the Firebase CLI
+   - Prerequisite, for the `firebase-emulator` provider only: a running Firebase Auth emulator, which comes with the Firebase CLI
      (`brew install firebase-cli` or `npm install -g firebase-tools`; needs Node.js), started with
      `firebase emulators:start --only auth --project <projectId>`. `flow_start`'s failure message gives both
      commands. moqserver neither includes nor calls the emulator: its `jwt-claims` add-on only decodes the token
-     the app sends. An app that doesn't sign in through Firebase can't use these steps until another provider
-     exists behind them.
+     the app sends. An app that doesn't sign in through Firebase uses `test-routes`.
    - The per-app config gains `"auth": {"provider": "firebase-emulator", "host": "127.0.0.1:9099",
      "projectId": "demo-example"}`. `host` is how this Mac reaches the emulator and falls back to
      `FIREBASE_AUTH_EMULATOR_HOST`; a Google host is refused, so these steps never touch a real project. The flow
@@ -114,6 +113,27 @@ Rules that follow from this:
      sign-in and refresh fail with `USER_DISABLED`.
    - It calls the emulator's admin routes (`accounts:lookup`, `update`, `delete`, `batchCreate`) with the
      emulator's `owner` token. Shared protocol types live in `Sources/ExtensionKit`, which `MoqBridge` re-exports.
+   - **`test-routes`** calls routes the backend offers for tests, for an app run against its real backend
+     (`examples/moq.json` shows the section):
+     `"auth": {"provider": "test-routes", "baseURL": "http://127.0.0.1:8081", "sessionHeader": "X-Test-Session",
+     "launchEnvironment": {"APP_TEST_SESSION": "{{sessionId}}"}, "routes": {"release": {"method": "DELETE",
+     "path": "/_test/sessions/{session}"}, "disable_user": {"method": "PUT", "path":
+     "/_test/accounts/{email}/disabled"}, …}}`.
+     - `routes` maps a step name to `{method, path}`; `{email}` and `{session}` are percent-encoded into the
+       path. A step with no route fails by name, and so does a route that doesn't answer 2xx. `baseURL` must be
+       loopback: these routes change data, so they are never called on another machine.
+     - With `sessionHeader`, `flow_start` makes an id for the run, sends it in that header on every route call
+       and returns `launchEnvironment` (`{{sessionId}}`, `{{baseURL}}`) for amoo to merge into app launches. A
+       backend that keeps one data set per id then lets real-backend runs go in parallel, as moqserver sessions
+       do for mocked ones. `flow_end` calls the `release` route; a 404 there means nothing reached the session.
+       A flow with no `auth.*` step declares `"extensions": ["auth"]` to get a session.
+     - Without `sessionHeader` the run shares the backend's data, and `flow_end` undoes the first change to each
+       account with the opposite route (`disable_user` ↔ `enable_user`); other steps can't be undone.
+     - `emit` is built for this provider and XCUITest: a per-test `authSession` id, the launch keys, a
+       `release` call in teardown that never fails the test, and `try authExpect("<METHOD>", "<path>")` per
+       step. The helpers call the backend synchronously, since XCTest's setUp and tearDown can't be async. The
+       config is found through `AMOO_EXT_AUTH_CONFIG` at generate time. The emulator provider, Espresso and
+       Compose answer `ok: false`.
 3. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or
    attach moqserver, admin auth by reference, launch-env keys for base URL and session, sign-in profile, id catalog
    and test target locations. Today it holds the server (port, admin host, readiness path, admin auth by env var
@@ -178,30 +198,34 @@ xcodebuild build -project ExampleApp.xcodeproj -scheme ExampleApp -derivedDataPa
   -destination 'platform=iOS Simulator,id=<udid>'
 
 cd examples
-curl -X POST http://127.0.0.1:8081/_test/reset
+export AMOO_EXTENSION_PATH=$PWD/../.build/debug
 amoo flow flows/ios/swipe-delete.real.amoo.json --device <udid> --port <amoo-port> --runtime-id <id> --output-dir <dir>
-AMOO_EXTENSION_PATH=$PWD/../.build/debug amoo flow flows/ios/swipe-delete.moq.amoo.json \
+amoo flow flows/ios/swipe-delete.moq.amoo.json \
   --device <udid> --port <amoo-port> --runtime-id <id> --output-dir <dir> --var moq_port=<port>
 ```
 
-- The backend keeps its data in memory; `POST /_test/reset` puts the seed back. A real-backend flow or test
-  changes that data, so reset before each run and never run two against one backend at once. The mocked ones each
-  get their own session and run in parallel.
+- The backend keeps its data in memory, one seeded data set per `X-Test-Session` value plus a shared one for
+  requests without the header. A real-backend flow gets its own session from `amoo-ext-auth` (`test-routes`
+  provider) and the app joins it through `APP_TEST_SESSION`, so real-backend runs are as independent as mocked
+  ones and both kinds run in parallel. `POST /_test/reset` puts a data set's seed back, and
+  `DELETE /_test/sessions/<id>` drops one.
 - `apps/ios/UITests/` holds the XCUITests amoo generated from the flows, unedited. Regenerate one with
   `amoo generate plan --from-flow <flow> --out <dir>`, then
   `amoo generate test --plan <dir>/plan.json --test-name <Name> --out apps/ios/UITests`, with
-  `AMOO_EXTENSION_PATH` and `AMOO_EXT_MOQ_CONFIG=$PWD/moq.json` set for a mocked flow. The target takes
-  `MoqTestSupport` by relative path, so it needs a moqserver checkout next to this repo.
+  `AMOO_EXTENSION_PATH` set, plus `AMOO_EXT_MOQ_CONFIG=$PWD/moq.json` for a mocked flow or
+  `AMOO_EXT_AUTH_CONFIG=$PWD/moq.json` for a real-backend one. amoo doesn't overwrite a generated file, so
+  delete the old one first. The target takes `MoqTestSupport` by relative path, so it needs a moqserver checkout
+  next to this repo.
 
   ```bash
   TEST_RUNNER_MOQ_PORT=<port> xcodebuild test -project ExampleApp.xcodeproj -scheme ExampleApp \
-    -derivedDataPath build -only-testing:ExampleAppUITests/SwipeDeleteMockedTest \
+    -derivedDataPath build \
     -destination 'platform=iOS Simulator,id=<udid-1>' -destination 'platform=iOS Simulator,id=<udid-2>' \
     -destination 'platform=iOS Simulator,id=<udid-3>' \
     -parallel-testing-enabled YES -parallel-testing-worker-count 3
-  xcodebuild test -project ExampleApp.xcodeproj -scheme ExampleApp -derivedDataPath build \
-    -only-testing:ExampleAppUITests/SwipeDeleteTest -destination 'platform=iOS Simulator,id=<udid-1>'
   ```
+
+  Both servers must be running: the mocked tests use moqserver, the others the backend on port 8081.
 - **"Save Password?" on iOS simulators.** Once an XCUITest has typed into a password field on a simulator, iOS
   offers to save the password after every sign-in there, for amoo flows too. On iOS 27.2 the sheet is outside
   the app's element tree: the tree shrinks to the application element, the failed step names no dialog, and
@@ -214,8 +238,8 @@ AMOO_EXTENSION_PATH=$PWD/../.build/debug amoo flow flows/ios/swipe-delete.moq.am
   ```
 
   The first sign-in after the change may still show the sheet once. Measured on the example: with AutoFill on,
-  0 of 3 flow runs passed after a fresh boot; with it off, 18 of 19, and the generated mocked test passed on
-  three simulators in parallel three times running. A simulator that has never booted has no `UserSettings.plist`
+  0 of 3 flow runs passed after a fresh boot; with it off, 18 of 19, and the generated tests passed on three
+  simulators in parallel. A simulator that has never booted has no `UserSettings.plist`
   yet; boot it once first.
 
 ## Conventions

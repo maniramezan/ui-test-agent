@@ -5,11 +5,38 @@ import XCTest
 @MainActor
 final class SwipeDeleteTest: XCTestCase {
     private let defaultTimeout: TimeInterval = 5
+    /// This test's own data set on the backend, so tests running at the same time
+    /// don't see each other's changes.
+    private let authSession = UUID().uuidString.lowercased()
+    /// Calls one of the backend's test routes and returns the status, 0 when it did not answer.
+    private func authCall(_ method: String, _ path: String) throws -> Int {
+        var request = URLRequest(url: try XCTUnwrap(URL(string: "http://127.0.0.1:8081" + path)))
+        request.httpMethod = method
+        request.timeoutInterval = 10
+        request.setValue(authSession, forHTTPHeaderField: "X-Test-Session")
+        let done = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var status = 0
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            done.signal()
+        }.resume()
+        done.wait()
+        return status
+    }
+    /// Calls one of the backend's test routes and fails the test unless it answers 2xx.
+    private func authExpect(
+        _ method: String, _ path: String, file: StaticString = #filePath, line: UInt = #line
+    ) throws {
+        let status = try authCall(method, path)
+        XCTAssertTrue(
+            (200..<300).contains(status), "\(method) \(path) answered \(status)", file: file, line: line)
+    }
     private lazy var app = XCUIApplication()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         continueAfterFailure = false
+        app.launchEnvironment["APP_TEST_SESSION"] = "\(authSession)"
         app.launchEnvironment["APP_BASE_URL"] = "http://127.0.0.1:8081"
         app.launch()
     }
@@ -26,6 +53,7 @@ final class SwipeDeleteTest: XCTestCase {
             hierarchy.lifetime = .keepAlways
             add(hierarchy)
         }
+        _ = try? authCall("DELETE", "/_test/sessions/\(authSession)")
         try super.tearDownWithError()
     }
 

@@ -1,15 +1,17 @@
 {
   "platform": "ios",
   "terminate_app_at_end": true,
+  "extensions": ["auth"],
   "vars": {
     "app_id": "com.example.app",
+    "auth_config": "moq.json",
     "base_url": "http://127.0.0.1:8081",
     "email": "user@example.com",
     "password": "example-password"
   },
   "steps": [
     {
-      "name": "Launch against the local backend",
+      "name": "Launch against the local backend, in this run's session",
       "tool": "device_launch_app",
       "arguments": { "app_id": "${app_id}", "environment": "APP_BASE_URL=${base_url}" }
     },

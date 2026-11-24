@@ -7,6 +7,19 @@
     "readinessTimeoutSeconds": 30,
     "adminAuth": { "kind": "none" }
   },
+  "auth": {
+    "provider": "test-routes",
+    "baseURL": "http://127.0.0.1:8081",
+    "sessionHeader": "X-Test-Session",
+    "launchEnvironment": {
+      "APP_TEST_SESSION": "{{sessionId}}"
+    },
+    "routes": {
+      "release": { "method": "DELETE", "path": "/_test/sessions/{session}" },
+      "disable_user": { "method": "PUT", "path": "/_test/accounts/{email}/disabled" },
+      "enable_user": { "method": "DELETE", "path": "/_test/accounts/{email}/disabled" }
+    }
+  },
   "platforms": {
     "ios": {
       "appHost": "127.0.0.1",

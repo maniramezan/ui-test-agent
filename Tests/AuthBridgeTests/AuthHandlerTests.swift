@@ -14,6 +14,8 @@ actor StubTransport: HTTPTransport {
 
     private var replies: [String: [(Int, String)]]
     private(set) var sent: [Sent] = []
+    /// The header fields of each request, in the order of `sent`.
+    private(set) var sentHeaders: [[String: String]] = []
 
     init(_ replies: [String: [(Int, String)]]) {
         self.replies = replies
@@ -25,6 +27,7 @@ actor StubTransport: HTTPTransport {
         let key = "\(method) \(url.path(percentEncoded: false))"
         let body = request.httpBody.flatMap { try? JSONDecoder().decode(JSONValue.self, from: $0) }
         sent.append(Sent(method: method, path: url.path(percentEncoded: false), body: body))
+        sentHeaders.append(request.allHTTPHeaderFields ?? [:])
         var queue = replies[key] ?? []
         guard !queue.isEmpty else {
             throw URLError(.cannotConnectToHost)

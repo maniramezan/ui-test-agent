@@ -11,6 +11,9 @@ public enum AuthError: Error, Equatable, LocalizedError {
     case malformedResponse(action: String)
     case noAccount(email: String)
     case noRunState
+    case backendNotReachable(url: String)
+    case noRoute(step: String)
+    case backendRefused(step: String, status: Int)
 
     /// How to get the Firebase CLI, which contains the Auth emulator. It needs Node.js.
     public static let installCommand = "brew install firebase-cli (or: npm install -g firebase-tools)"
@@ -37,6 +40,14 @@ public enum AuthError: Error, Equatable, LocalizedError {
             "The auth emulator has no account with email \(email)"
         case .noRunState:
             "No auth state for this run; flow_start did not succeed"
+        case .backendNotReachable(let url):
+            "The backend did not answer \(url). Start it before running the flow"
+        case .noRoute(let step):
+            "The config's auth.routes has no \(step) route, so this backend can't do auth.\(step)"
+        case .backendRefused(let step, let status):
+            status == 404
+                ? "The backend's \(step) route answered 404: no such account, or no such route"
+                : "The backend's \(step) route answered \(status)"
         }
     }
 }
