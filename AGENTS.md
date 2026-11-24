@@ -235,6 +235,18 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
   provider) and the app joins it through `APP_TEST_SESSION`, so real-backend runs are as independent as mocked
   ones and both kinds run in parallel. `POST /_test/reset` puts a data set's seed back, and
   `DELETE /_test/sessions/<id>` drops one.
+- Cases so far, each as a flow and a generated test: `swipe-delete` (real, moq), `filter` (real, moq: the query
+  string is checked by the bundle's value rules and by which variant answers), `delete-all` (real, moq: Edit, the
+  confirmation alert, the empty state), `account-disabled` (real: `auth.disable_user` mid-session) and
+  `load-failure` (moq: a one-shot 500, then Try Again).
+- iOS reports each button of a SwiftUI alert twice, with the same id. A tap on one names its pick
+  (`"first": true`). A tap that should bring the alert up states its outcome as the alert's text
+  (`expect_contains_text`), not as a button's id: the flow accepts two matches of an `expect_id`, but the
+  generated test's check for it needs exactly one. Let an alert settle (`wait_for` with `idle: true`) before
+  tapping it.
+- An accessibility identifier on a container such as `ContentUnavailableView` lands on every child, so a
+  selector for it matches several elements. The app combines the container into one element first
+  (`.accessibilityElement(children: .combine)`).
 - `apps/ios/UITests/` holds the XCUITests amoo generated from the flows, unedited. Regenerate one with
   `amoo generate plan --from-flow <flow> --out <dir>`, then
   `amoo generate test --plan <dir>/plan.json --test-name <Name> --out apps/ios/UITests`, with

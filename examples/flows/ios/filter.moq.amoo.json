@@ -1,0 +1,98 @@
+{
+  "platform": "ios",
+  "terminate_app_at_end": true,
+  "vars": {
+    "app_id": "com.example.app",
+    "moq_config": "moq.json",
+    "email": "user@example.com",
+    "password": "example-password"
+  },
+  "steps": [
+    {
+      "name": "Launch against the mock server, in this run's session",
+      "tool": "device_launch_app",
+      "arguments": { "app_id": "${app_id}" }
+    },
+    {
+      "name": "Sign-in screen is up",
+      "tool": "wait_for",
+      "arguments": { "id": "signIn.email", "timeout_ms": 10000 }
+    },
+    {
+      "name": "Enter email",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Sign in",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "tasks.count", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The tasks are listed",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "3 tasks" }
+    },
+    {
+      "name": "The app reached this run's session",
+      "tool": "moq.assert_session_reached",
+      "arguments": { "timeout_ms": 5000 }
+    },
+    {
+      "name": "Mark before filtering",
+      "tool": "moq.mark",
+      "arguments": { "name": "before-filter" }
+    },
+    {
+      "name": "Open the filter",
+      "tool": "tap_element",
+      "arguments": { "id": "tasks.filter", "expect_id": "filter.done" }
+    },
+    {
+      "name": "Let the sheet settle",
+      "tool": "wait_for",
+      "arguments": { "idle": true }
+    },
+    {
+      "name": "Show done tasks only",
+      "tool": "tap_element",
+      "arguments": { "id": "filter.done", "expect_id": "filter.done", "expect_absent": true }
+    },
+    {
+      "name": "The list says which filter is on",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.filterLabel", "contains_text": "Done" }
+    },
+    {
+      "name": "Only done tasks are counted",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "1 task" }
+    },
+    {
+      "name": "The list was asked for once more, signed in",
+      "tool": "moq.assert_request",
+      "arguments": { "endpoint": "GET /v1/tasks", "times": 1, "headers": [{"name": "Authorization", "scheme": "Bearer"}, {"name": "Cookie", "present": true}], "since": "before-filter", "timeout_ms": 3000 }
+    },
+    {
+      "name": "No request was refused",
+      "tool": "moq.assert_no_rejected_requests",
+      "arguments": {}
+    },
+    {
+      "name": "Every request matched an endpoint",
+      "tool": "moq.assert_no_unmatched_requests",
+      "arguments": {}
+    },
+    {
+      "name": "Every request carried the session",
+      "tool": "moq.assert_all_requests_carry_session",
+      "arguments": {}
+    },
+    { "tool": "screenshot", "name": "filtered" }
+  ]
+}

@@ -58,6 +58,8 @@ private struct SessionGuardView: View {
             systemImage: "exclamationmark.triangle",
             description: Text(problem)
         )
+        // One element: an identifier on the container alone lands on its image and both texts.
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier(ID.sessionGuardMessage)
     }
 }

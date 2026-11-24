@@ -236,6 +236,8 @@ private struct EmptyTasksView: View {
             systemImage: "checklist",
             description: Text("Tap + to add one.")
         )
+        // One element: an identifier on the container alone lands on its image and both texts.
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier(ID.tasksEmpty)
     }
 }
