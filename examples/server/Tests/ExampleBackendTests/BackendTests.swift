@@ -59,9 +59,10 @@ extension TestClientProtocol {
             status: response.status, headers: response.headers, json: object as? [String: Any] ?? [:])
     }
 
-    func signIn(email: String = "user@example.com") async throws -> SignedIn {
+    func signIn(email: String = "user@example.com", headers: HTTPFields = [:]) async throws -> SignedIn {
         let reply = try await call(
-            .post, "/v1/session", json: #"{"email":"\#(email)","password":"example-password"}"#)
+            .post, "/v1/session", headers: headers,
+            json: #"{"email":"\#(email)","password":"example-password"}"#)
         #expect(reply.status == .ok)
         let token = try #require(reply.json["token"] as? String)
         let setCookie = try #require(reply.headers[.setCookie])
@@ -287,6 +288,62 @@ extension TestClientProtocol {
             let list = try await client.call(
                 .get, "/v1/tasks?status=all&page=1&limit=100", headers: fresh.headers)
             #expect(list.items.count == Store.seededTaskCount)
+        }
+    }
+
+    @Test func aTestSessionHasItsOwnDataUntilItIsReleased() async throws {
+        try await withBackend { client in
+            let header = try #require(HTTPField.Name(TestSessions.headerName))
+            let one: HTTPFields = [header: "session-one"]
+            let two: HTTPFields = [header: "session-two"]
+
+            let inOne = try await client.signIn(headers: one)
+            let cleared = try await client.call(.delete, "/v1/tasks", headers: inOne.headers + one)
+            #expect(cleared.status == .ok)
+            let disable = try await client.call(
+                .put, "/_test/accounts/second@example.com/disabled", headers: one)
+            #expect(disable.status == .noContent)
+
+            // The other session and the shared data still hold the seed.
+            let inTwo = try await client.signIn(headers: two)
+            let listTwo = try await client.call(
+                .get, "/v1/tasks?status=all&page=1&limit=100", headers: inTwo.headers + two)
+            #expect(listTwo.items.count == Store.seededTaskCount)
+            let second = try await client.call(
+                .post, "/v1/session", headers: two,
+                json: #"{"email":"second@example.com","password":"example-password"}"#)
+            #expect(second.status == .ok)
+            let shared = try await client.signIn()
+            let listShared = try await client.call(
+                .get, "/v1/tasks?status=all&page=1&limit=100", headers: shared.headers)
+            #expect(listShared.items.count == Store.seededTaskCount)
+
+            // A sign-in belongs to the data set it was made in.
+            let crossed = try await client.call(.get, "/v1/me", headers: inOne.headers + two)
+            #expect(crossed.status == .unauthorized)
+            #expect(crossed.error == "unknown_session")
+
+            let released = try await client.call(.delete, "/_test/sessions/session-one")
+            #expect(released.status == .noContent)
+            let again = try await client.call(.delete, "/_test/sessions/session-one")
+            #expect(again.status == .notFound)
+            let reseeded = try await client.signIn(headers: one)
+            let listOne = try await client.call(
+                .get, "/v1/tasks?status=all&page=1&limit=100", headers: reseeded.headers + one)
+            #expect(listOne.items.count == Store.seededTaskCount)
+        }
+    }
+
+    @Test func anUnusableTestSessionIdIsRefused() async throws {
+        try await withBackend { client in
+            let header = try #require(HTTPField.Name(TestSessions.headerName))
+            let reply = try await client.call(
+                .post, "/v1/session", headers: [header: "not a valid id"],
+                json: #"{"email":"user@example.com","password":"example-password"}"#)
+            #expect(reply.status == .badRequest)
+            #expect(reply.error == "invalid_test_session")
+            let reset = try await client.call(.post, "/_test/reset", headers: [header: "not a valid id"])
+            #expect(reset.status == .badRequest)
         }
     }
 }

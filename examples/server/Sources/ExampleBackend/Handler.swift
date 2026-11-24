@@ -7,9 +7,15 @@ import SwiftCommons
 struct Handler: APIProtocol {
     private static let logger = Logger.forType(subsystem: "ExampleServer", Handler.self)
 
-    let store: Store
+    /// The data used outside any test session.
+    let shared: Store
     let signer: TokenSigner
     let now: @Sendable () -> Date
+
+    /// The data set of the request being handled.
+    private var store: Store {
+        DataSet.current ?? shared
+    }
 
     // MARK: Session
 

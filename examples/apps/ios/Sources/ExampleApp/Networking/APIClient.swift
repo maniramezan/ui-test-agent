@@ -5,7 +5,8 @@ import SwiftCommons
 
 /// Talks to the API in `examples/openapi.yaml`. It keeps the bearer token in memory and the
 /// session cookie in an in-memory store, so every launch starts signed out. A 401 on a signed-in
-/// call is answered by one token refresh and one retry.
+/// call is answered by one token refresh and one retry. Calls that fail together share one
+/// refresh, and once the session is over every call fails with the reason it ended.
 actor APIClient {
     private static let logger = Logger.forType(subsystem: "ExampleApp", APIClient.self)
     static let pageSize = 20
@@ -13,6 +14,10 @@ actor APIClient {
     private let settings: LaunchSettings
     private let session: URLSession
     private var token: String?
+    /// The refresh in flight, shared by every call that got a 401 meanwhile.
+    private var refresh: Task<Void, any Error>?
+    /// Why the session ended, until the next sign-in.
+    private var ended: APIError?
 
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -40,6 +45,7 @@ actor APIClient {
         let payload: SessionPayload = try await call(
             "POST", "/v1/session", body: ["email": email, "password": password], authorized: false)
         token = payload.token
+        ended = nil
         return payload.user
     }
 
@@ -49,7 +55,7 @@ actor APIClient {
         } catch {
             Self.logger.error("Sign-out call failed", error: error, context: "action=signOut")
         }
-        forgetSession()
+        forgetSession(because: .signedOut)
     }
 
     // MARK: Tasks
@@ -123,6 +129,9 @@ actor APIClient {
         authorized: Bool,
         dropAuthorization: Bool
     ) async throws -> Data {
+        if authorized, let ended {
+            throw ended
+        }
         let first = try await perform(
             method, path, query: query, body: body, authorized: authorized && !dropAuthorization)
         guard first.status == 401, authorized else {
@@ -132,13 +141,28 @@ actor APIClient {
         try await refreshToken()
         let second = try await perform(method, path, query: query, body: body, authorized: true)
         if second.status == 401 {
-            forgetSession()
+            forgetSession(because: .signedOut)
             throw APIError.signedOut
         }
         return try Self.checked(second, signedIn: true)
     }
 
+    /// Refreshes the token once for every call waiting on it. A second refresh after the first
+    /// one ended the session would go out without its cookie and report the wrong reason.
     private func refreshToken() async throws {
+        if let ended {
+            throw ended
+        }
+        if let refresh {
+            return try await refresh.value
+        }
+        let task = Task { try await requestNewToken() }
+        refresh = task
+        defer { refresh = nil }
+        try await task.value
+    }
+
+    private func requestNewToken() async throws {
         let reply = try await perform(
             "POST", "/v1/session/refresh", query: [], body: nil, authorized: false)
         switch reply.status {
@@ -150,18 +174,21 @@ actor APIClient {
             Self.logger.infoPublic("Token refreshed")
         case 403:
             Self.logger.infoPublic("Refresh refused: account disabled")
-            forgetSession()
+            forgetSession(because: .accountDisabled)
             throw APIError.accountDisabled
         case 401:
             Self.logger.infoPublic("Refresh refused: session ended")
-            forgetSession()
+            forgetSession(because: .signedOut)
             throw APIError.signedOut
         default:
             throw APIError.server(status: reply.status)
         }
     }
 
-    private func forgetSession() {
+    private func forgetSession(because reason: APIError) {
+        if ended == nil {
+            ended = reason
+        }
         token = nil
         session.configuration.httpCookieStorage?.removeCookies(since: .distantPast)
     }
@@ -182,6 +209,9 @@ actor APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let mockSession = settings.mockSession {
             request.setValue(mockSession, forHTTPHeaderField: LaunchSettings.mockSessionHeader)
+        }
+        if let testSession = settings.testSession {
+            request.setValue(testSession, forHTTPHeaderField: LaunchSettings.testSessionHeader)
         }
         if authorized, let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

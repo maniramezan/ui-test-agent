@@ -19,7 +19,8 @@ struct AuthMiddleware: ServerMiddleware {
 
     private static let logger = Logger.forType(subsystem: "ExampleServer", AuthMiddleware.self)
 
-    let store: Store
+    /// The data used outside any test session.
+    let shared: Store
     let signer: TokenSigner
     let now: @Sendable () -> Date
 
@@ -46,7 +47,7 @@ struct AuthMiddleware: ServerMiddleware {
         }
         let account: Account
         do {
-            account = try await store.account(forSession: session)
+            account = try await (DataSet.current ?? shared).account(forSession: session)
         } catch {
             return Self.refuse(operationID, code: "unknown_session", "The session has ended")
         }

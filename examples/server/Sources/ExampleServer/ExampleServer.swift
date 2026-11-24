@@ -10,6 +10,10 @@ struct ExampleServer: AsyncParsableCommand {
         discussion: """
             POST /_test/reset restores the seed data. PUT and DELETE /_test/accounts/<email>/disabled \
             disable and re-enable an account. These routes are outside the spec on purpose.
+
+            A request with the header X-Test-Session: <id> uses a data set of its own, seeded when \
+            the id is first seen, so tests that each pick an id can run at the same time. \
+            DELETE /_test/sessions/<id> drops it.
             """
     )
 

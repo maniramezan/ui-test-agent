@@ -14,19 +14,24 @@ enum Fault: String, CaseIterable, Sendable {
 }
 
 /// What the launch environment tells the app: where its backend is and, under test, which mock
-/// session it belongs to.
+/// session or backend test session it belongs to.
 struct LaunchSettings: Sendable, Equatable {
     static let baseURLKey = "APP_BASE_URL"
     static let mockBaseURLKey = "APP_MOCK_BASE_URL"
     static let mockSessionKey = "APP_MOCK_SESSION"
+    static let testSessionKey = "APP_TEST_SESSION"
     static let faultKey = "APP_FAULT"
     /// The on-device recorder's own launch key: write the run's traffic to a HAR file.
     static let recordKey = "APITRACE_HAR_FILE"
     static let defaultBaseURL = "http://127.0.0.1:8081"
     static let mockSessionHeader = "X-Mock-Session"
+    static let testSessionHeader = "X-Test-Session"
 
     var baseURL: URL
     var mockSession: String?
+    /// Under test against the real backend: the data set this launch reads and writes, so tests
+    /// running at the same time don't see each other's changes.
+    var testSession: String?
     var faults: Set<Fault>
     var recordsTraffic: Bool
     /// Set when the launch can't be trusted, and shown instead of the app.
@@ -50,6 +55,7 @@ struct LaunchSettings: Sendable, Equatable {
             problem = "\(raw) is not a base URL."
         }
         mockSession = mockBase == nil ? nil : session
+        testSession = environment[Self.testSessionKey].flatMap { $0.isEmpty ? nil : $0 }
         recordsTraffic = environment[Self.recordKey] == "1"
         faults = Set(
             (environment[Self.faultKey] ?? "")

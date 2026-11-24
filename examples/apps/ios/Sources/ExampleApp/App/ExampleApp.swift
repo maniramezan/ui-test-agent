@@ -20,7 +20,8 @@ struct ExampleApp: App {
         self.settings = settings
         _session = State(initialValue: SessionModel(client: APIClient(settings: settings)))
         Self.logger.infoPublic(
-            "Launched mock=\(settings.mockSession != nil) faults=\(settings.faults.map(\.rawValue).sorted())")
+            "Launched mock=\(settings.mockSession != nil) testSession=\(settings.testSession != nil) faults=\(settings.faults.map(\.rawValue).sorted())"
+        )
     }
 
     var body: some Scene {
