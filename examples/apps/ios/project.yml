@@ -1,0 +1,40 @@
+name: ExampleApp
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+packages:
+  SwiftCommons:
+    url: https://github.com/maniramezan/SwiftCommons
+    exactVersion: 0.21.0
+  APITrace:
+    url: https://github.com/ArjangConsulting/ios-network-recorder
+    exactVersion: 1.5.0
+targets:
+  ExampleApp:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/ExampleApp
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: ExampleApp
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.app
+        SWIFT_VERSION: "6.0"
+        SWIFT_STRICT_CONCURRENCY: complete
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: "NO"
+    dependencies:
+      - package: SwiftCommons
+        product: SwiftCommons
+      - package: APITrace
+        product: APITraceCore
+      - package: APITrace
+        product: APITraceDebug
