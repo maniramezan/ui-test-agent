@@ -65,12 +65,12 @@ struct EmulatorClient {
         do {
             let (_, response) = try await transport.send(URLRequest(url: url))
             guard (200..<300).contains(response.statusCode) else {
-                throw AuthError.emulatorNotReachable(url: url.absoluteString)
+                throw AuthError.emulatorNotReachable(url: url.absoluteString, projectId: projectId)
             }
         } catch let error as AuthError {
             throw error
         } catch {
-            throw AuthError.emulatorNotReachable(url: url.absoluteString)
+            throw AuthError.emulatorNotReachable(url: url.absoluteString, projectId: projectId)
         }
     }
 

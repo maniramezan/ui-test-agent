@@ -6,11 +6,14 @@ public enum AuthError: Error, Equatable, LocalizedError {
     case configInvalid(path: String, problem: String)
     case hostNotGiven
     case notAnEmulator(host: String)
-    case emulatorNotReachable(url: String)
+    case emulatorNotReachable(url: String, projectId: String)
     case emulatorRefused(action: String, status: Int, reason: String?)
     case malformedResponse(action: String)
     case noAccount(email: String)
     case noRunState
+
+    /// How to get the Firebase CLI, which contains the Auth emulator. It needs Node.js.
+    public static let installCommand = "brew install firebase-cli (or: npm install -g firebase-tools)"
 
     public var errorDescription: String? {
         switch self {
@@ -24,8 +27,8 @@ public enum AuthError: Error, Equatable, LocalizedError {
             "No emulator host: set auth.host in the config or \(AuthConfig.hostEnvironmentVariable)"
         case .notAnEmulator(let host):
             "\(host) is a Google host; auth.* steps only act on a local emulator"
-        case .emulatorNotReachable(let url):
-            "The auth emulator did not answer \(url); start it first"
+        case .emulatorNotReachable(let url, let projectId):
+            "The Firebase Auth emulator did not answer \(url). Start it with: firebase emulators:start --only auth --project \(projectId). If the firebase command is missing, install the Firebase CLI first: \(AuthError.installCommand)"
         case .emulatorRefused(let action, let status, let reason):
             "The auth emulator refused \(action) (\(status))" + (reason.map { ": \($0)" } ?? "")
         case .malformedResponse(let action):

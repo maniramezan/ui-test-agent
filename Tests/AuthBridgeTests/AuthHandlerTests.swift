@@ -112,6 +112,19 @@ struct AuthHandlerTests {
         }
     }
 
+    @Test("flow_start with no emulator running says how to start it and how to install the Firebase CLI")
+    func flowStartEmulatorDown() async throws {
+        let url = try config(#"{"app":"sample","auth":{"provider":"firebase-emulator","host":"127.0.0.1:9099","projectId":"demo-example"}}"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let reply = try await handler(StubTransport([:])).handle(
+            request(#"{"protocol":1,"verb":"flow_start","state":null,"vars":{"auth_config":"\#(url.path)"}}"#))
+        #expect(reply.ok == false)
+        let message = try #require(reply.message)
+        #expect(message.contains("firebase emulators:start --only auth --project demo-example"))
+        #expect(message.contains("brew install firebase-cli"))
+        #expect(message.contains("npm install -g firebase-tools"))
+    }
+
     @Test("flow_start without an auth section fails with the reason")
     func flowStartNoSection() async throws {
         let url = try config(#"{"app":"sample"}"#)

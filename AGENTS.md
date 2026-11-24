@@ -85,6 +85,12 @@ Rules that follow from this:
    Firebase Auth emulator is the first provider; others go behind the same steps.
    - Steps, each `{email}`: `auth.disable_user`, `auth.enable_user`, `auth.delete_user`, `auth.revoke_tokens`.
      An unknown email fails the step.
+   - Prerequisite, for these steps only: a running Firebase Auth emulator, which comes with the Firebase CLI
+     (`brew install firebase-cli` or `npm install -g firebase-tools`; needs Node.js), started with
+     `firebase emulators:start --only auth --project <projectId>`. `flow_start`'s failure message gives both
+     commands. moqserver neither includes nor calls the emulator: its `jwt-claims` add-on only decodes the token
+     the app sends. An app that doesn't sign in through Firebase can't use these steps until another provider
+     exists behind them.
    - The per-app config gains `"auth": {"provider": "firebase-emulator", "host": "127.0.0.1:9099",
      "projectId": "demo-example"}`. `host` is how this Mac reaches the emulator and falls back to
      `FIREBASE_AUTH_EMULATOR_HOST`; a Google host is refused, so these steps never touch a real project. The flow
