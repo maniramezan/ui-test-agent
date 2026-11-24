@@ -1,0 +1,28 @@
+id: "delete-v1-session"
+alias: "Sign out."
+reference_name: "deleteSession"
+method: "DELETE"
+path: "/v1/session"
+tags: ["session"]
+
+auth:
+  type: bearer
+  verify: true
+  header_name: null
+
+request_rules:
+  cookies:
+    - name: "example_session"
+      required: true
+
+variants:
+  - name: "success"
+    reference_name: "success"
+    default: true
+    status: 204
+  - name: "unauthorized"
+    reference_name: "unauthorized"
+    status: 401
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/delete-v1-session/v1-session-unauthorized.json"

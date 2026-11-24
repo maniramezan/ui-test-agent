@@ -1,0 +1,46 @@
+id: "post-v1-tasks"
+alias: "Add a task."
+reference_name: "createTask"
+method: "POST"
+path: "/v1/tasks"
+tags: ["tasks"]
+
+auth:
+  type: bearer
+  verify: true
+  header_name: null
+
+request_rules:
+  cookies:
+    - name: "example_session"
+      required: true
+  requires_body: true
+  accepted_content_types:
+    - "application/json"
+
+variants:
+  - name: "success"
+    reference_name: "success"
+    default: true
+    status: 201
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-success.json"
+  - name: "unauthorized"
+    reference_name: "unauthorized"
+    status: 401
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-unauthorized.json"
+  - name: "invalid"
+    reference_name: "invalid"
+    status: 422
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-invalid.json"
+  - name: "server-error"
+    reference_name: "serverError"
+    status: 500
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-server-error.json"

@@ -1,0 +1,8 @@
+{
+  "token" : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJleHAiOjQxMDI0NDQ4MDAsImlhdCI6MTc2NzIyNTYwMCwic2lkIjoiZXhhbXBsZS1zZXNzaW9uIiwic3ViIjoidXNlci0xIn0.AESME9D7GHo2WaVnjfk5Mu2neLkIvRGpUMSe3CvBqGY",
+  "user" : {
+    "email" : "user@example.com",
+    "id" : "user-1",
+    "name" : "Alex Example"
+  }
+}

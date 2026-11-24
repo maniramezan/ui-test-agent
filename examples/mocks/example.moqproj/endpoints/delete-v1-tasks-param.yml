@@ -1,0 +1,40 @@
+id: "delete-v1-tasks-param"
+alias: "Delete one task."
+reference_name: "deleteTask"
+method: "DELETE"
+path: "/v1/tasks/{id}"
+tags: ["tasks"]
+
+auth:
+  type: bearer
+  verify: true
+  header_name: null
+
+request_rules:
+  cookies:
+    - name: "example_session"
+      required: true
+
+variants:
+  - name: "success"
+    reference_name: "success"
+    default: true
+    status: 204
+  - name: "unauthorized"
+    reference_name: "unauthorized"
+    status: 401
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/delete-v1-tasks-param/v1-tasks-id-unauthorized.json"
+  - name: "not-found"
+    reference_name: "notFound"
+    status: 404
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/delete-v1-tasks-param/v1-tasks-id-not-found.json"
+  - name: "server-error"
+    reference_name: "serverError"
+    status: 500
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/delete-v1-tasks-param/v1-tasks-id-server-error.json"

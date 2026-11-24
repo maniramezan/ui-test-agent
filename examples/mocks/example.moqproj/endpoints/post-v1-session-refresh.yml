@@ -1,0 +1,37 @@
+id: "post-v1-session-refresh"
+alias: "Exchange the session cookie for a new bearer token."
+reference_name: "refreshSession"
+method: "POST"
+path: "/v1/session/refresh"
+tags: ["session"]
+
+auth:
+  type: none
+  verify: false
+  header_name: null
+
+request_rules:
+  cookies:
+    - name: "example_session"
+      required: true
+
+variants:
+  - name: "success"
+    reference_name: "success"
+    default: true
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-success.json"
+  - name: "unauthorized"
+    reference_name: "unauthorized"
+    status: 401
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-unauthorized.json"
+  - name: "account-disabled"
+    reference_name: "accountDisabled"
+    status: 403
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-account-disabled.json"

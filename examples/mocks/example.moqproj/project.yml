@@ -1,0 +1,17 @@
+version: "1"
+name: "ExampleApp API"
+
+defaults:
+  delay_ms: 0
+  auth:
+    type: none
+    verify: false
+    header_name: null
+  network:
+    latency_ms: 0
+    jitter_ms: 0
+    packet_loss_percent: 0.0
+
+addons:
+  jwt-claims:
+    verify_signature: false

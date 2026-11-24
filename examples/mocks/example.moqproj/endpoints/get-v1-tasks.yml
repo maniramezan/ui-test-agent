@@ -1,0 +1,99 @@
+id: "get-v1-tasks"
+alias: "One page of the user's tasks, newest first."
+reference_name: "listTasks"
+method: "GET"
+path: "/v1/tasks"
+tags: ["tasks"]
+
+auth:
+  type: bearer
+  verify: true
+  header_name: null
+
+request_rules:
+  query_params:
+    - name: "limit"
+      match_type: matches_regex
+      match: "^([1-9][0-9]?|100)$"
+      required: true
+    - name: "page"
+      match_type: matches_regex
+      match: "^[1-9][0-9]*$"
+      required: true
+    - name: "status"
+      match_type: matches_regex
+      match: "^(all|open|done)$"
+      required: true
+  cookies:
+    - name: "example_session"
+      required: true
+
+variants:
+  - name: "success"
+    reference_name: "success"
+    default: true
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-success.json"
+  - name: "bad-request"
+    reference_name: "badRequest"
+    status: 400
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-bad-request.json"
+  - name: "unauthorized"
+    reference_name: "unauthorized"
+    status: 401
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-unauthorized.json"
+  - name: "open-only"
+    reference_name: "openOnly"
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    request_match:
+      query:
+        "status": "open"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-open-only.json"
+  - name: "done-only"
+    reference_name: "doneOnly"
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    request_match:
+      query:
+        "status": "done"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-done-only.json"
+  - name: "empty"
+    reference_name: "empty"
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-empty.json"
+  - name: "slow"
+    reference_name: "slow"
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-slow.json"
+    delay_ms: 3000
+  - name: "malformed"
+    reference_name: "malformed"
+    status: 200
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-malformed.json"
+  - name: "server-error"
+    reference_name: "serverError"
+    status: 500
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-server-error.json"
+  - name: "unavailable"
+    reference_name: "unavailable"
+    status: 503
+    headers:
+      "Content-Type": "application/json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-unavailable.json"
