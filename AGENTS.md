@@ -161,6 +161,63 @@ A flow made only of `moq.*` steps needs no device, which makes it the quickest e
 moqserver `2957465` or later; an older build exits with "Unknown option". Logs go to the unified log under
 subsystem `UITestAgent`, so stdout stays JSON only.
 
+## The example
+
+`examples/` is the public end-to-end target: one API (`openapi.yaml`), a real local backend (`server/`), a mock
+bundle (`mocks/example.moqproj`), an id catalog (`ids.json`), flows (`flows/<platform>/`) and app implementations
+side by side under `apps/`. Each case exists as a pair: `<case>.real.amoo.json` runs against the backend with no
+mocks, `<case>.moq.amoo.json` against a moqserver session with request checks.
+
+```bash
+swift build --package-path examples/server
+examples/server/.build/debug/example-server --port 8081
+moqserver serve --project examples/mocks/example.moqproj --port <port> --capture-request-headers
+
+cd examples/apps/ios && xcodegen generate
+xcodebuild build -project ExampleApp.xcodeproj -scheme ExampleApp -derivedDataPath build \
+  -destination 'platform=iOS Simulator,id=<udid>'
+
+cd examples
+curl -X POST http://127.0.0.1:8081/_test/reset
+amoo flow flows/ios/swipe-delete.real.amoo.json --device <udid> --port <amoo-port> --runtime-id <id> --output-dir <dir>
+AMOO_EXTENSION_PATH=$PWD/../.build/debug amoo flow flows/ios/swipe-delete.moq.amoo.json \
+  --device <udid> --port <amoo-port> --runtime-id <id> --output-dir <dir> --var moq_port=<port>
+```
+
+- The backend keeps its data in memory; `POST /_test/reset` puts the seed back. A real-backend flow or test
+  changes that data, so reset before each run and never run two against one backend at once. The mocked ones each
+  get their own session and run in parallel.
+- `apps/ios/UITests/` holds the XCUITests amoo generated from the flows, unedited. Regenerate one with
+  `amoo generate plan --from-flow <flow> --out <dir>`, then
+  `amoo generate test --plan <dir>/plan.json --test-name <Name> --out apps/ios/UITests`, with
+  `AMOO_EXTENSION_PATH` and `AMOO_EXT_MOQ_CONFIG=$PWD/moq.json` set for a mocked flow. The target takes
+  `MoqTestSupport` by relative path, so it needs a moqserver checkout next to this repo.
+
+  ```bash
+  TEST_RUNNER_MOQ_PORT=<port> xcodebuild test -project ExampleApp.xcodeproj -scheme ExampleApp \
+    -derivedDataPath build -only-testing:ExampleAppUITests/SwipeDeleteMockedTest \
+    -destination 'platform=iOS Simulator,id=<udid-1>' -destination 'platform=iOS Simulator,id=<udid-2>' \
+    -destination 'platform=iOS Simulator,id=<udid-3>' \
+    -parallel-testing-enabled YES -parallel-testing-worker-count 3
+  xcodebuild test -project ExampleApp.xcodeproj -scheme ExampleApp -derivedDataPath build \
+    -only-testing:ExampleAppUITests/SwipeDeleteTest -destination 'platform=iOS Simulator,id=<udid-1>'
+  ```
+- **"Save Password?" on iOS simulators.** Once an XCUITest has typed into a password field on a simulator, iOS
+  offers to save the password after every sign-in there, for amoo flows too. On iOS 27.2 the sheet is outside
+  the app's element tree: the tree shrinks to the application element, the failed step names no dialog, and
+  amoo's `dismiss_system_dialogs` has nothing to press. Turn password AutoFill off on each simulator used for
+  sign-in tests, while it is shut down:
+
+  ```bash
+  plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO \
+    ~/Library/Developer/CoreSimulator/Devices/<udid>/data/Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist
+  ```
+
+  The first sign-in after the change may still show the sheet once. Measured on the example: with AutoFill on,
+  0 of 3 flow runs passed after a fresh boot; with it off, 18 of 19, and the generated mocked test passed on
+  three simulators in parallel three times running. A simulator that has never booted has no `UserSettings.plist`
+  yet; boot it once first.
+
 ## Conventions
 
 - Confirm a new convention (tag notation, first version, commit style, config file names) with the user before

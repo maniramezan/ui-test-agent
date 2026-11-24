@@ -11,6 +11,10 @@ packages:
   APITrace:
     url: https://github.com/ArjangConsulting/ios-network-recorder
     exactVersion: 1.5.0
+  # moqserver's Swift test client is a nested package, so it can't be pinned by URL yet. This
+  # path expects a moqserver checkout next to this repo.
+  MoqTestSupport:
+    path: ../../../../moqserver/server/MoqTestSupport
 targets:
   ExampleApp:
     type: application
@@ -30,7 +34,6 @@ targets:
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
         TARGETED_DEVICE_FAMILY: "1"
-        CODE_SIGNING_ALLOWED: "NO"
     dependencies:
       - package: SwiftCommons
         product: SwiftCommons
@@ -38,3 +41,22 @@ targets:
         product: APITraceCore
       - package: APITrace
         product: APITraceDebug
+    scheme:
+      testTargets:
+        - name: ExampleAppUITests
+          parallelizable: true
+  ExampleAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.app.uitests
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: ExampleApp
+    dependencies:
+      - target: ExampleApp
+      - package: MoqTestSupport
+        product: MoqTestSupport
