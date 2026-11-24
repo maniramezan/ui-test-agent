@@ -1,0 +1,351 @@
+openapi: 3.0.3
+info:
+  title: ExampleApp API
+  version: 1.0.0
+  description: >
+    The backend of ExampleApp, a fictional tasks app. Signing in returns a bearer token and sets a
+    session cookie; every other call must carry both.
+servers:
+  - url: http://127.0.0.1:8081
+tags:
+  - name: session
+  - name: tasks
+paths:
+  /v1/session:
+    post:
+      operationId: createSession
+      tags: [session]
+      summary: Sign in with email and password.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+      responses:
+        '200':
+          description: Signed in.
+          headers:
+            Set-Cookie:
+              description: The session cookie, `example_session`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/Invalid'
+    delete:
+      operationId: deleteSession
+      tags: [session]
+      summary: Sign out.
+      responses:
+        '204':
+          description: Signed out.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/session/refresh:
+    post:
+      operationId: refreshSession
+      tags: [session]
+      summary: Exchange the session cookie for a new bearer token.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: A new token for the same session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [session]
+      summary: The signed-in user.
+      responses:
+        '200':
+          description: The user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: One page of the user's tasks, newest first.
+      parameters:
+        - name: status
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/StatusFilter'
+        - name: page
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: A page of tasks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Add a task.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTask'
+      responses:
+        '201':
+          description: The new task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/Invalid'
+    delete:
+      operationId: deleteAllTasks
+      tags: [tasks]
+      summary: Delete every task of the user.
+      responses:
+        '200':
+          description: How many tasks were deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedCount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getTask
+      tags: [tasks]
+      summary: One task.
+      responses:
+        '200':
+          description: The task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Change a task's title, notes or done state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskChanges'
+      responses:
+        '200':
+          description: The changed task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Invalid'
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete one task.
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+security:
+  - bearerAuth: []
+    sessionCookie: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: example_session
+  responses:
+    BadRequest:
+      description: A query parameter is missing or out of range.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unauthorized:
+      description: The bearer token or the session cookie is missing, expired or wrong.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Forbidden:
+      description: The account is disabled.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: No such task.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Invalid:
+      description: The body failed validation; `fields` names each problem.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+  schemas:
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+    Session:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          description: A JWT whose `sub` is the user's id.
+        user:
+          $ref: '#/components/schemas/User'
+    User:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+    StatusFilter:
+      type: string
+      enum: [all, open, done]
+    TaskItem:
+      type: object
+      required: [id, title, done, created_at]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        notes:
+          type: string
+        done:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    TaskPage:
+      type: object
+      required: [items, page, limit, total, has_more]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskItem'
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        has_more:
+          type: boolean
+    NewTask:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        notes:
+          type: string
+    TaskChanges:
+      type: object
+      properties:
+        title:
+          type: string
+        notes:
+          type: string
+        done:
+          type: boolean
+    DeletedCount:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: integer
+    ErrorBody:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: A stable code such as `invalid_credentials` or `task_not_found`.
+        message:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: string
