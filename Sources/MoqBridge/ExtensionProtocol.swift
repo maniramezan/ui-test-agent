@@ -53,16 +53,20 @@ public struct BridgeState: Codable, Sendable, Equatable {
     public var sessionId: String
     /// `moq.mark` names → server timestamps, for later steps' `since`.
     public var marks: [String: Double]?
+    /// What `GET /_admin/version` reported at flow start; `nil` in state from an older bridge,
+    /// which skips the check.
+    public var capabilities: [String]?
 
     public init(
         configPath: String, port: Int, platform: Platform, sessionId: String,
-        marks: [String: Double]? = nil
+        marks: [String: Double]? = nil, capabilities: [String]? = nil
     ) {
         self.configPath = configPath
         self.port = port
         self.platform = platform
         self.sessionId = sessionId
         self.marks = marks
+        self.capabilities = capabilities
     }
 }
 

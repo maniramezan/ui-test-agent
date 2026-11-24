@@ -10,6 +10,8 @@ public struct ExtensionHandler: Sendable {
     public static let sessionVariable = "moq_session"
     public static let configEnvironmentVariable = "AMOO_EXT_MOQ_CONFIG"
     public static let portEnvironmentVariable = "MOQ_PORT"
+    /// The first moqserver commit that reports its capabilities.
+    public static let minimumServerCommit = "748fae4"
 
     /// The steps this build implements. A flow using any other `moq.*` step fails before it runs.
     public static let steps = [
@@ -104,12 +106,25 @@ public struct ExtensionHandler: Sendable {
         else {
             throw BridgeError.unknownPlatform(request.run?.platform)
         }
-        let started = try await lifecycle(config, port: port).start(platform: platform)
+        let lifecycle = lifecycle(config, port: port)
+        let started = try await lifecycle.start(platform: platform)
+        let capabilities: [String]
+        do {
+            capabilities = try await AdminClient(
+                baseURL: lifecycle.adminBaseURL,
+                auth: try ResolvedAdminAuth(config.server.adminAuth, environment: environment),
+                transport: transport
+            ).capabilities()
+        } catch {
+            try? await lifecycle.end(sessionId: started.sessionId)
+            throw error
+        }
         let state = BridgeState(
             configPath: configURL.path,
             port: port,
             platform: platform,
-            sessionId: started.sessionId
+            sessionId: started.sessionId,
+            capabilities: capabilities
         )
         return ExtensionReply(
             ok: true,
@@ -163,7 +178,8 @@ public struct ExtensionHandler: Sendable {
             transport: transport
         )
         var runner = StepRunner(
-            client: client, session: state.sessionId, marks: state.marks ?? [:])
+            client: client, session: state.sessionId, marks: state.marks ?? [:],
+            capabilities: state.capabilities.map(Set.init))
         var reply = try await runner.run(
             tool: step.tool, arguments: StepArguments(step.arguments ?? [:]))
         var updated = state

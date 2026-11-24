@@ -15,6 +15,7 @@ public enum BridgeError: Error, Equatable, LocalizedError {
     case invalidArgument(name: String, reason: String)
     case unsupportedProtocol(Int)
     case noSession
+    case missingCapability(String, step: String)
 
     public var errorDescription: String? {
         switch self {
@@ -46,6 +47,8 @@ public enum BridgeError: Error, Equatable, LocalizedError {
             "amoo sent protocol \(version); this amoo-ext-moq speaks protocol \(ExtensionReply.protocolVersion)"
         case .noSession:
             "No moqserver session for this run; flow_start did not succeed"
+        case .missingCapability(let capability, let step):
+            "moq.\(step) needs moqserver capability '\(capability)', which this server doesn't report (GET /_admin/version); use moqserver \(ExtensionHandler.minimumServerCommit) or later"
         }
     }
 }

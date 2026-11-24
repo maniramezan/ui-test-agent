@@ -218,6 +218,25 @@ public struct AdminClient: Sendable {
         return url.appending(queryItems: [URLQueryItem(name: "operation", value: operation)])
     }
 
+    /// The admin-API behaviours this server supports (`GET /_admin/version`). A server without the
+    /// route predates all of them, so a 404 answers an empty list.
+    public func capabilities() async throws -> [String] {
+        struct Version: Decodable {
+            let capabilities: [String]
+        }
+        let url = baseURL.appending(path: "_admin/version")
+        let (data, response) = try await send("GET", url: url)
+        if response.statusCode == 404 {
+            Self.logger.infoPublic("No version route at \(url.absoluteString); assuming no capabilities")
+            return []
+        }
+        try Self.check(response, data: data, method: "GET", url: url)
+        guard let version = try? JSONDecoder().decode(Version.self, from: data) else {
+            throw BridgeError.malformedResponse(url: url.absoluteString)
+        }
+        return version.capabilities
+    }
+
     @discardableResult
     private func call(_ method: String, url: URL, session: String, json: (any Encodable)? = nil)
         async throws -> Data

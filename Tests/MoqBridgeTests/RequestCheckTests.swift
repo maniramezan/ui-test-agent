@@ -16,8 +16,10 @@ struct RequestCheckTests {
             .path
     }()
 
-    private static func state(marks: [String: Double]? = nil) -> BridgeState {
-        BridgeState(configPath: configPath, port: 18080, platform: .ios, sessionId: "S-1", marks: marks)
+    private static func state(marks: [String: Double]? = nil, capabilities: [String]? = nil) -> BridgeState {
+        BridgeState(
+            configPath: configPath, port: 18080, platform: .ios, sessionId: "S-1", marks: marks,
+            capabilities: capabilities)
     }
 
     private static let passing = #"{"ok":true,"count":1,"expected":1,"matched":[],"nearMisses":[],"unattributed":[],"message":"1 request matched"}"#
@@ -226,5 +228,37 @@ struct RequestCheckTests {
             replies: ["POST /_admin/requests/query": [.status(200, body: Self.failing)]])
         #expect(reply.ok == false)
         #expect(sent.first?.body == (try object(#"{"unmatched":true,"times":0}"#)))
+    }
+
+    @Test("A query step on a server without request-query fails without querying")
+    func missingRequestQuery() async throws {
+        let (reply, sent) = try await run(
+            "assert_no_unmatched_requests", state: Self.state(capabilities: ["limited-overrides"]), replies: [:])
+        #expect(reply.ok == false)
+        #expect(reply.message == BridgeError.missingCapability("request-query", step: "assert_no_unmatched_requests").errorDescription)
+        #expect(sent.isEmpty)
+    }
+
+    @Test("select_variant needs limited-overrides only when it sets times")
+    func selectVariantTimesCapability() async throws {
+        let route = "PUT /_admin/endpoints/GET/v1/me/variant"
+        let (plain, _) = try await run(
+            "select_variant", arguments: #"{"endpoint":"GET /v1/me","variant":"error"}"#,
+            state: Self.state(capabilities: []), replies: [route: [.status(200)]])
+        #expect(plain.ok == true)
+        let (limited, sent) = try await run(
+            "select_variant", arguments: #"{"endpoint":"GET /v1/me","variant":"error","times":"1"}"#,
+            state: Self.state(capabilities: []), replies: [route: [.status(200)]])
+        #expect(limited.ok == false)
+        #expect(limited.message?.contains("limited-overrides") == true)
+        #expect(sent.isEmpty)
+    }
+
+    @Test("State from before capabilities were recorded skips the check")
+    func noRecordedCapabilities() async throws {
+        let (reply, _) = try await run(
+            "assert_no_unmatched_requests", state: Self.state(),
+            replies: ["POST /_admin/requests/query": [.status(200, body: Self.passing)]])
+        #expect(reply.ok == true)
     }
 }

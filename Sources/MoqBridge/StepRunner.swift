@@ -141,17 +141,44 @@ struct StepRunner {
     let client: AdminClient
     let session: String
     private(set) var marks: [String: Double]
+    /// The server's capabilities, or `nil` to skip the check.
+    let capabilities: Set<String>?
 
     static let pollInterval: Duration = .milliseconds(100)
 
-    init(client: AdminClient, session: String, marks: [String: Double] = [:]) {
+    /// The capability each step relies on. `select_variant` needs `limited-overrides` only with
+    /// `times`, so it is checked where that argument is read.
+    static let requiredCapability: [String: String] = [
+        "mark": "request-query",
+        "assert_request": "request-query",
+        "assert_no_rejected_requests": "request-query",
+        "assert_all_requests_carry_session": "request-query",
+        "assert_session_reached": "request-query",
+        "assert_no_unmatched_requests": "request-query",
+    ]
+
+    init(
+        client: AdminClient, session: String, marks: [String: Double] = [:],
+        capabilities: Set<String>? = nil
+    ) {
         self.client = client
         self.session = session
         self.marks = marks
+        self.capabilities = capabilities
+    }
+
+    private func require(_ capability: String, for tool: String) throws {
+        guard let capabilities, !capabilities.contains(capability) else {
+            return
+        }
+        throw BridgeError.missingCapability(capability, step: tool)
     }
 
     mutating func run(tool: String, arguments: StepArguments) async throws -> ExtensionReply {
         var arguments = arguments
+        if let capability = Self.requiredCapability[tool] {
+            try require(capability, for: tool)
+        }
         switch tool {
         case "activate_scenario":
             let name = try arguments.string("name")
@@ -166,6 +193,9 @@ struct StepRunner {
             let variant = try arguments.string("variant")
             let times = try arguments.optionalInt("times", minimum: 1)
             try arguments.finish()
+            if times != nil {
+                try require("limited-overrides", for: tool)
+            }
             try await client.selectVariant(variant, for: endpoint, times: times, session: session)
             var result: [String: JSONValue] = [
                 "endpoint": .string(endpoint.key), "variant": .string(variant),

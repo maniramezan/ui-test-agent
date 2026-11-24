@@ -48,6 +48,12 @@ Rules that follow from this:
    - Each request check sends the same query body as the `MoqClient` call of the same name, so a flow step and a
      generated test get the same verdict from the server. Keep it that way: never evaluate a predicate in the bridge.
      `assert_no_unmatched_requests` sends `{"unmatched": true, "times": 0}`, which needs moqserver `8091415` or later.
+   - At flow start the bridge reads moqserver's capabilities (`GET /_admin/version`, moqserver `748fae4`; a 404
+     means none) and keeps them in the run state. `mark` and the `assert_*` steps need `request-query`;
+     `select_variant` with `times` needs `limited-overrides`. A step whose capability is missing fails with the
+     name, without calling the server, so an old server can't pass a check by matching nothing. Check
+     capabilities, never the version: source builds report `version` and `commit` as null. moqserver's
+     `docs/NON_GOALS.md` lists what it won't do; read it before asking for a server feature.
    - Step arguments (snake_case; numbers and booleans may be strings after `${…}` substitution; unknown arguments
      fail the step):
      - `select_variant {endpoint, variant, operation?, times?}`, where `times` makes a one-shot override.

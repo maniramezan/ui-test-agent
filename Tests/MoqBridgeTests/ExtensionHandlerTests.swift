@@ -55,13 +55,20 @@ struct ExtensionHandlerTests {
         let transport = StubTransport([
             "GET /_admin/endpoints": [.status(200)],
             "POST /_admin/sessions": [.status(200, body: #"{"id":"S-9"}"#)],
+            "GET /_admin/version": [
+                .status(200, body: #"{"version":null,"commit":null,"capabilities":["request-query","limited-overrides"]}"#)
+            ],
         ])
         let reply = try await handler(transport).handle(
             request(
                 #"{"protocol":1,"verb":"flow_start","run":{"id":"r1","platform":"android","device_id":"emulator-5554"},"state":null,"vars":{"moq_config":"\#(Self.configPath)","moq_port":"18080"}}"#
             ))
         #expect(reply.ok == true)
-        #expect(reply.state == BridgeState(configPath: Self.configPath, port: 18080, platform: .android, sessionId: "S-9"))
+        #expect(
+            reply.state
+                == BridgeState(
+                    configPath: Self.configPath, port: 18080, platform: .android, sessionId: "S-9",
+                    capabilities: ["request-query", "limited-overrides"]))
         #expect(reply.launchEnvironment?["APP_MOCK_BASE_URL"] == "http://10.0.2.2:18080")
         #expect(reply.launchEnvironment?["APP_MOCK_SESSION"] == "S-9")
         #expect(reply.vars == ["moq_session": "S-9"])
@@ -72,6 +79,7 @@ struct ExtensionHandlerTests {
         let transport = StubTransport([
             "GET /_admin/endpoints": [.status(200)],
             "POST /_admin/sessions": [.status(200, body: #"{"id":"S-8"}"#)],
+            "GET /_admin/version": [.status(404)],
         ])
         let reply = try await handler(
             transport,
@@ -86,6 +94,7 @@ struct ExtensionHandlerTests {
         let transport = StubTransport([
             "GET /_admin/endpoints": [.status(200)],
             "POST /_admin/sessions": [.status(200, body: #"{"id":"S-7"}"#)],
+            "GET /_admin/version": [.status(404)],
         ])
         let repoRoot = URL(filePath: Self.configPath)
             .deletingLastPathComponent()
@@ -99,6 +108,22 @@ struct ExtensionHandlerTests {
             ))
         #expect(reply.ok == true)
         #expect(reply.state?.configPath == Self.configPath)
+    }
+
+    @Test("flow_start releases the new session when the server's capabilities can't be read")
+    func flowStartCapabilitiesFail() async throws {
+        let transport = StubTransport([
+            "GET /_admin/endpoints": [.status(200)],
+            "POST /_admin/sessions": [.status(200, body: #"{"id":"S-6"}"#)],
+            "GET /_admin/version": [.status(500)],
+            "DELETE /_admin/sessions/S-6": [.status(200)],
+        ])
+        let reply = try await handler(transport).handle(
+            request(
+                #"{"protocol":1,"verb":"flow_start","run":{"id":"r1","platform":"ios"},"state":null,"vars":{"moq_config":"\#(Self.configPath)","moq_port":"18080"}}"#
+            ))
+        #expect(reply.ok == false)
+        #expect(await transport.sent.last?.path == "/_admin/sessions/S-6")
     }
 
     @Test("flow_start without a config fails the run with a message")
