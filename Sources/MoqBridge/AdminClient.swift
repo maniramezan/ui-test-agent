@@ -2,27 +2,6 @@ import Foundation
 import OSLog
 import SwiftCommons
 
-/// Sends one HTTP request. Swapped for a stub in tests.
-public protocol HTTPTransport: Sendable {
-    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
-}
-
-public struct URLSessionTransport: HTTPTransport {
-    private let session: URLSession
-
-    public init(session: URLSession = .shared) {
-        self.session = session
-    }
-
-    public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw BridgeError.malformedResponse(url: request.url?.absoluteString ?? "")
-        }
-        return (data, http)
-    }
-}
-
 /// Admin credentials resolved from the environment. The value never leaves this type except in
 /// the request header.
 public struct ResolvedAdminAuth: Sendable {

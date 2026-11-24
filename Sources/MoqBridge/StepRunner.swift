@@ -1,108 +1,9 @@
 import Foundation
 
-/// A step's arguments, read strictly: every argument must be consumed, so a typo fails the step
-/// instead of being ignored. Numbers and booleans may also arrive as strings, since amoo
-/// substitutes `${name}` into strings.
-struct StepArguments {
-    private let values: [String: JSONValue]
-    private var read: Set<String> = []
-
-    init(_ values: [String: JSONValue]) {
-        self.values = values
-    }
-
-    mutating func string(_ name: String) throws -> String {
-        guard let value = try optionalString(name) else {
-            throw BridgeError.invalidArgument(name: name, reason: "required")
-        }
-        return value
-    }
-
-    mutating func optionalString(_ name: String) throws -> String? {
-        read.insert(name)
-        switch values[name] {
-        case nil, .null:
-            return nil
-        case .string(let value) where !value.isEmpty:
-            return value
-        default:
-            throw BridgeError.invalidArgument(name: name, reason: "must be a non-empty string")
-        }
-    }
-
-    mutating func optionalInt(_ name: String, minimum: Int) throws -> Int? {
-        read.insert(name)
-        let number: Double
-        switch values[name] {
-        case nil, .null:
-            return nil
-        case .number(let value):
-            number = value
-        case .string(let text):
-            guard let value = Double(text) else {
-                throw BridgeError.invalidArgument(name: name, reason: "must be a whole number")
-            }
-            number = value
-        default:
-            throw BridgeError.invalidArgument(name: name, reason: "must be a whole number")
-        }
-        guard number.rounded() == number, number >= Double(minimum), number <= Double(Int32.max) else {
-            throw BridgeError.invalidArgument(
-                name: name, reason: "must be a whole number of at least \(minimum)")
-        }
-        return Int(number)
-    }
-
-    mutating func optionalBool(_ name: String) throws -> Bool? {
-        read.insert(name)
-        switch values[name] {
-        case nil, .null:
-            return nil
-        case .bool(let value):
-            return value
-        case .string("true"):
-            return true
-        case .string("false"):
-            return false
-        default:
-            throw BridgeError.invalidArgument(name: name, reason: "must be true or false")
-        }
-    }
-
-    /// An object of string values, e.g. `claims: {"sub": "user-1"}`.
-    mutating func stringMap(_ name: String) throws -> [String: String] {
-        read.insert(name)
-        switch values[name] {
-        case nil, .null:
-            return [:]
-        case .object(let object):
-            return try object.mapValues { value in
-                guard case .string(let text) = value else {
-                    throw BridgeError.invalidArgument(name: name, reason: "values must be strings")
-                }
-                return text
-            }
-        default:
-            throw BridgeError.invalidArgument(name: name, reason: "must be an object of strings")
-        }
-    }
-
-    mutating func array(_ name: String) throws -> [JSONValue] {
-        read.insert(name)
-        switch values[name] {
-        case nil, .null:
-            return []
-        case .array(let items):
-            return items
-        default:
-            throw BridgeError.invalidArgument(name: name, reason: "must be an array")
-        }
-    }
-
+extension StepArguments {
     /// `since`: the name of an earlier `moq.mark`, or Unix seconds on the server's clock.
     mutating func since(marks: [String: Double]) throws -> Double? {
-        read.insert("since")
-        switch values["since"] {
+        switch value("since") {
         case nil, .null:
             return nil
         case .number(let value):
@@ -122,14 +23,6 @@ struct StepArguments {
             )
         default:
             throw BridgeError.invalidArgument(name: "since", reason: "must be a mark name or a number")
-        }
-    }
-
-    func finish() throws {
-        let unknown = Set(values.keys).subtracting(read).sorted()
-        guard unknown.isEmpty else {
-            throw BridgeError.invalidArgument(
-                name: unknown.joined(separator: ", "), reason: "not an argument of this step")
         }
     }
 }

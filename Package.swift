@@ -7,6 +7,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .executable(name: "amoo-ext-moq", targets: ["AmooExtMoq"]),
+        .executable(name: "amoo-ext-auth", targets: ["AmooExtAuth"]),
         .library(name: "MoqBridge", targets: ["MoqBridge"]),
     ],
     dependencies: [
@@ -14,10 +15,12 @@ let package = Package(
         .package(url: "https://github.com/maniramezan/SwiftCommons", exact: "0.20.0", traits: []),
     ],
     targets: [
+        .target(name: "ExtensionKit"),
         .target(
             name: "MoqBridge",
             dependencies: [
-                .product(name: "SwiftCommons", package: "SwiftCommons")
+                "ExtensionKit",
+                .product(name: "SwiftCommons", package: "SwiftCommons"),
             ]
         ),
         .executableTarget(
@@ -26,6 +29,24 @@ let package = Package(
                 "MoqBridge",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
+        ),
+        .target(
+            name: "AuthBridge",
+            dependencies: [
+                "ExtensionKit",
+                .product(name: "SwiftCommons", package: "SwiftCommons"),
+            ]
+        ),
+        .executableTarget(
+            name: "AmooExtAuth",
+            dependencies: [
+                "AuthBridge",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
+        .testTarget(
+            name: "AuthBridgeTests",
+            dependencies: ["AuthBridge"]
         ),
         .testTarget(
             name: "MoqBridgeTests",

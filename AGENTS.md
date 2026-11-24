@@ -13,7 +13,7 @@ This file is the shared instruction set for any coding agent working in this rep
 | --- | --- | --- |
 | [amoo](https://github.com/maniramezan/mobile-testing) | Device driving, flows, test generation, a general external-step hook (`prefix.step` → `amoo-ext-<prefix>`) | No |
 | [moqserver](https://github.com/maniramezan/moqserver) | Mock server, admin API, `MoqClient` (Swift, Kotlin), `moq-author` | No |
-| **ui-test-agent** (this repo) | `amoo-ext-moq`, the per-app config format, the agent + skills plugin, the eval | Yes: uses both, through their CLIs and public APIs only |
+| **ui-test-agent** (this repo) | `amoo-ext-moq`, `amoo-ext-auth`, the per-app config format, the agent + skills plugin, the eval | Yes: uses both, through their CLIs and public APIs only |
 | Each app under test | Its own per-app config, mock bundle, flows and tests | Uses this repo's tools |
 
 Rules that follow from this:
@@ -81,12 +81,29 @@ Rules that follow from this:
      `requests: 0`.
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
      `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
-2. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or
+2. **`amoo-ext-auth`** (Swift executable): account fixtures on an identity-provider emulator, for `auth.*` steps.
+   Firebase Auth emulator is the first provider; others go behind the same steps.
+   - Steps, each `{email}`: `auth.disable_user`, `auth.enable_user`, `auth.delete_user`, `auth.revoke_tokens`.
+     An unknown email fails the step.
+   - The per-app config gains `"auth": {"provider": "firebase-emulator", "host": "127.0.0.1:9099",
+     "projectId": "demo-example"}`. `host` is how this Mac reaches the emulator and falls back to
+     `FIREBASE_AUTH_EMULATOR_HOST`; a Google host is refused, so these steps never touch a real project. The flow
+     finds the config through the var `auth_config`, then `moq_config`, then `AMOO_EXT_AUTH_CONFIG`. `flow_start`
+     fails if the emulator doesn't answer.
+   - `flow_end` puts back every account a step changed, as the run first found it: re-enables or re-disables it, or
+     recreates a deleted one with its id, fields and password (the emulator keeps the password readable in its
+     fake hash). A revocation can't be undone; the next run signs in fresh.
+   - Emulator differences, checked against firebase-tools 15.18.0: after `revoke_tokens`, ID tokens issued earlier
+     fail, but the emulator still exchanges an old refresh token, unlike production. After `disable_user`, both
+     sign-in and refresh fail with `USER_DISABLED`.
+   - It calls the emulator's admin routes (`accounts:lookup`, `update`, `delete`, `batchCreate`) with the
+     emulator's `owner` token. Shared protocol types live in `Sources/ExtensionKit`, which `MoqBridge` re-exports.
+3. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or
    attach moqserver, admin auth by reference, launch-env keys for base URL and session, sign-in profile, id catalog
    and test target locations. Today it holds the server (port, admin host, readiness path, admin auth by env var
    name) and per-platform launch keys; values may use `{{baseURL}}` (built from the platform's `appHost`, e.g.
    `10.0.2.2` on an Android emulator) and `{{sessionId}}`. Add the other fields with the steps that use them.
-3. **The agent and lean skills**, packaged as a plugin. Discovery once; anything repeatable becomes an amoo flow that
+4. **The agent and lean skills**, packaged as a plugin. Discovery once; anything repeatable becomes an amoo flow that
    runs on the CLI at no model cost. Two mock-data paths:
    - Synthesize from the app's code or an OpenAPI spec with `moq-author`.
    - Record real traffic on the device with [mobile-network-recorder](https://github.com/arjangconsulting/mobile-network-recorder)
@@ -103,7 +120,7 @@ Rules that follow from this:
         then review the bundle diff before committing it in the app's repo.
    - moqserver has no record or pass-through (proxy) mode, by the user's decision, and this repo doesn't propose
      one. Recording belongs in the app, where it sees exactly what the app sends; moqserver stays "not a recorder".
-4. **Eval**: run the agent on the first targets and compare against doing them by hand (tokens, wall time, pass rate).
+5. **Eval**: run the agent on the first targets and compare against doing them by hand (tokens, wall time, pass rate).
 
 ## Commands
 
@@ -111,6 +128,7 @@ Rules that follow from this:
 swift build
 swift test --parallel
 swift test --filter SessionLifecycleTests
+swift test --filter AuthHandlerTests
 .build/debug/amoo-ext-moq config check --config examples/moq.json
 .build/debug/amoo-ext-moq session start --config <app-repo>/moq.json --platform android --port <port>
 .build/debug/amoo-ext-moq session end --config <app-repo>/moq.json --session <sessionId> --port <port>
