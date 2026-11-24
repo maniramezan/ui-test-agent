@@ -65,8 +65,14 @@ Rules that follow from this:
      trailing-slash difference resolves, and an unknown key answers 400 with the closest key, which fails the
      step, so a `times: 0` check can't pass on a typo. Older servers silently match nothing.
    - Flows should set amoo's `"terminate_app_at_end": true` (amoo `638c4b8`): an app left running keeps sending its
-     released session id, and other runs' session checks on a shared server would see it. `flow_end` warns when amoo
-     reports `app_terminated: false`. A flow with no `moq.*` step declares `"extensions": ["moq"]` to get a session.
+     released session id, and other runs' session checks on a shared server would see it. A flow with no `moq.*`
+     step declares `"extensions": ["moq"]` to get a session; vars alone don't start the extension.
+   - amoo drops `flow_end`'s reply message and only logs a `flow_end` failure, so the bridge can't warn or fail
+     there. Instead, just before releasing the session it writes `<output_dir>/moq-session.json`:
+     `{schema, session, requests, unmatched, rejected, app_terminated}`. The counts come from the same query bodies
+     the steps send; a failed query leaves its count `null`. The bridge records and never judges: `app_terminated:
+     false` means both "launched no app" and "left an app running", and a pure `moq.*` flow legitimately has
+     `requests: 0`.
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
      `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
 2. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or

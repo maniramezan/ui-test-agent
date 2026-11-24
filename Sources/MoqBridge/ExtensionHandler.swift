@@ -125,7 +125,22 @@ public struct ExtensionHandler: Sendable {
             return ExtensionReply(ok: true, message: "No session to release")
         }
         let config = try AppConfig.load(from: URL(filePath: state.configPath))
-        try await lifecycle(config, port: state.port).end(sessionId: state.sessionId)
+        let lifecycle = lifecycle(config, port: state.port)
+        if let outputDir = request.run?.outputDir, !outputDir.isEmpty {
+            let client = AdminClient(
+                baseURL: lifecycle.adminBaseURL,
+                auth: try ResolvedAdminAuth(config.server.adminAuth, environment: environment),
+                transport: transport
+            )
+            await SessionSummary.read(
+                client: client, session: state.sessionId, appTerminated: request.appTerminated
+            )
+            .write(
+                to: outputDir.hasPrefix("/")
+                    ? URL(filePath: outputDir)
+                    : currentDirectory.appending(path: outputDir).standardizedFileURL)
+        }
+        try await lifecycle.end(sessionId: state.sessionId)
         var message = "Released moqserver session \(state.sessionId)"
         if request.appTerminated == false {
             message +=

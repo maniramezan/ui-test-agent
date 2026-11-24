@@ -188,6 +188,69 @@ struct ExtensionHandlerTests {
         #expect(quiet.message == "Released moqserver session S-1")
     }
 
+    private func flowEndRequest(outputDir: URL, appTerminated: Bool = true) throws -> ExtensionRequest {
+        let state = String(decoding: try JSONEncoder().encode(Self.state), as: UTF8.self)
+        return try request(
+            #"{"protocol":1,"verb":"flow_end","run":{"id":"r1","platform":"ios","output_dir":"\#(outputDir.path)"},"state":\#(state),"passed":true,"app_terminated":\#(appTerminated)}"#
+        )
+    }
+
+    private func temporaryDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "moq-session-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    @Test("flow_end records the session's counts in the output directory before releasing it")
+    func flowEndWritesSessionSummary() async throws {
+        let transport = StubTransport([
+            "POST /_admin/requests/query": [
+                .status(200, body: #"{"ok":true,"count":4}"#),
+                .status(200, body: #"{"ok":false,"count":1}"#),
+                .status(200, body: #"{"ok":true,"count":0}"#),
+            ],
+            "DELETE /_admin/sessions/S-1": [.status(200)],
+        ])
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let reply = try await handler(transport).handle(flowEndRequest(outputDir: directory, appTerminated: false))
+
+        #expect(reply.ok == true)
+        let sent = await transport.sent
+        #expect(sent.map(\.method) == ["POST", "POST", "POST", "DELETE"])
+        #expect(
+            sent.prefix(3).map(\.body) == [
+                .object([:]),
+                .object(["unmatched": .bool(true), "times": .number(0)]),
+                .object(["rejected": .bool(true), "times": .number(0)]),
+            ])
+        #expect(sent.prefix(3).allSatisfy { $0.headers["X-Mock-Session"] == "S-1" })
+        let data = try Data(contentsOf: directory.appending(path: SessionSummary.fileName))
+        let summary = try JSONDecoder().decode(SessionSummary.self, from: data)
+        #expect(
+            summary
+                == SessionSummary(session: "S-1", requests: 4, unmatched: 1, rejected: 0, appTerminated: false))
+    }
+
+    @Test("A failed count query is recorded as null and the session is still released")
+    func flowEndSummaryQueryFails() async throws {
+        let transport = StubTransport([
+            "POST /_admin/requests/query": [.failure],
+            "DELETE /_admin/sessions/S-1": [.status(200)],
+        ])
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let reply = try await handler(transport).handle(flowEndRequest(outputDir: directory))
+
+        #expect(reply.ok == true)
+        #expect(await transport.sent.last?.method == "DELETE")
+        let data = try Data(contentsOf: directory.appending(path: SessionSummary.fileName))
+        let summary = try JSONDecoder().decode(SessionSummary.self, from: data)
+        #expect(summary == SessionSummary(session: "S-1", appTerminated: true))
+    }
+
     @Test("flow_end releases the session, and is a no-op without one")
     func flowEnd() async throws {
         let transport = StubTransport(["DELETE /_admin/sessions/S-1": [.status(200)]])
