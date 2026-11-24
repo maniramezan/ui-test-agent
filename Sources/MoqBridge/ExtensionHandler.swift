@@ -141,23 +141,29 @@ public struct ExtensionHandler: Sendable {
         }
         let config = try AppConfig.load(from: URL(filePath: state.configPath))
         let lifecycle = lifecycle(config, port: state.port)
+        let client = AdminClient(
+            baseURL: lifecycle.adminBaseURL,
+            auth: try ResolvedAdminAuth(config.server.adminAuth, environment: environment),
+            transport: transport
+        )
+        let summary = await SessionSummary.read(
+            client: client, session: state.sessionId, appTerminated: request.appTerminated,
+            appsLaunched: request.appsLaunched)
         if let outputDir = request.run?.outputDir, !outputDir.isEmpty {
-            let client = AdminClient(
-                baseURL: lifecycle.adminBaseURL,
-                auth: try ResolvedAdminAuth(config.server.adminAuth, environment: environment),
-                transport: transport
-            )
-            await SessionSummary.read(
-                client: client, session: state.sessionId, appTerminated: request.appTerminated
-            )
-            .write(
+            summary.write(
                 to: outputDir.hasPrefix("/")
                     ? URL(filePath: outputDir)
                     : currentDirectory.appending(path: outputDir).standardizedFileURL)
         }
         try await lifecycle.end(sessionId: state.sessionId)
         var message = "Released moqserver session \(state.sessionId)"
-        if request.appTerminated == false {
+        if let launched = request.appsLaunched, launched > 0, summary.requests == 0 {
+            // amoo shows ok: false as a teardown warning; it never changes the run's result.
+            message +=
+                ". The run launched \(launched) app(s) but no request reached this session: the app may have launched without the session key and called its real backend. Add moq.assert_session_reached after the launch to fail the run on this."
+            return ExtensionReply(ok: false, message: message, state: state)
+        }
+        if request.appTerminated == false, request.appsLaunched.map({ $0 > 0 }) ?? true {
             message +=
                 ". The app may still be running and sending this session id, which other runs' session checks would see; set \"terminate_app_at_end\": true in the flow."
         }

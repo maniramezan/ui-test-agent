@@ -73,12 +73,13 @@ Rules that follow from this:
    - Flows should set amoo's `"terminate_app_at_end": true` (amoo `638c4b8`): an app left running keeps sending its
      released session id, and other runs' session checks on a shared server would see it. A flow with no `moq.*`
      step declares `"extensions": ["moq"]` to get a session; vars alone don't start the extension.
-   - amoo drops `flow_end`'s reply message and only logs a `flow_end` failure, so the bridge can't warn or fail
-     there. Instead, just before releasing the session it writes `<output_dir>/moq-session.json`:
-     `{schema, session, requests, unmatched, rejected, app_terminated}`. The counts come from the same query bodies
-     the steps send; a failed query leaves its count `null`. The bridge records and never judges: `app_terminated:
-     false` means both "launched no app" and "left an app running", and a pure `moq.*` flow legitimately has
-     `requests: 0`.
+   - Just before releasing the session, `flow_end` writes `<output_dir>/moq-session.json`:
+     `{schema, session, requests, unmatched, rejected, app_terminated, apps_launched}`. The counts come from the
+     same query bodies the steps send; a failed query leaves its count `null`. From amoo `d38b415`, `flow_end`'s
+     message prints as a note and `ok: false` as a teardown warning; neither changes pass/fail. The bridge warns
+     when the run launched an app (`apps_launched`, amoo `686317a`) and no request reached the session, and notes
+     an app left running only when one was launched. A check that should fail the run belongs in a step
+     (`assert_session_reached`).
    - Flows find the config through the flow variable `moq_config` (or `AMOO_EXT_MOQ_CONFIG`) and the port through
      `moq_port` (or `MOQ_PORT`). Relative paths resolve against amoo's working directory.
 2. **`amoo-ext-auth`** (Swift executable): account fixtures on an identity-provider emulator, for `auth.*` steps.

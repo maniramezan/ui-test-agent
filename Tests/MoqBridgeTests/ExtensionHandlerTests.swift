@@ -276,6 +276,33 @@ struct ExtensionHandlerTests {
         #expect(summary == SessionSummary(session: "S-1", appTerminated: true))
     }
 
+    @Test("flow_end warns when the run launched an app but no request reached the session")
+    func flowEndWarnsWhenSessionNeverReached() async throws {
+        let state = String(decoding: try JSONEncoder().encode(Self.state), as: UTF8.self)
+        let transport = StubTransport([
+            "POST /_admin/requests/query": [.status(200, body: #"{"ok":true,"count":0}"#)],
+            "DELETE /_admin/sessions/S-1": [.status(200)],
+        ])
+        let reply = try await handler(transport).handle(
+            request(#"{"protocol":1,"verb":"flow_end","state":\#(state),"passed":true,"apps_launched":1,"app_terminated":true}"#))
+        #expect(reply.ok == false)
+        #expect(reply.message?.contains("no request reached this session") == true)
+        #expect(await transport.sent.last?.method == "DELETE")
+    }
+
+    @Test("flow_end stays quiet for a run that launched no app")
+    func flowEndQuietWithoutApps() async throws {
+        let state = String(decoding: try JSONEncoder().encode(Self.state), as: UTF8.self)
+        let transport = StubTransport([
+            "POST /_admin/requests/query": [.status(200, body: #"{"ok":true,"count":0}"#)],
+            "DELETE /_admin/sessions/S-1": [.status(200)],
+        ])
+        let reply = try await handler(transport).handle(
+            request(#"{"protocol":1,"verb":"flow_end","state":\#(state),"passed":true,"apps_launched":0,"app_terminated":false}"#))
+        #expect(reply.ok == true)
+        #expect(reply.message == "Released moqserver session S-1")
+    }
+
     @Test("flow_end releases the session, and is a no-op without one")
     func flowEnd() async throws {
         let transport = StubTransport(["DELETE /_admin/sessions/S-1": [.status(200)]])
@@ -283,7 +310,7 @@ struct ExtensionHandlerTests {
         let released = try await handler(transport).handle(
             request(#"{"protocol":1,"verb":"flow_end","state":\#(state),"passed":true}"#))
         #expect(released.ok == true)
-        #expect(await transport.sent.map(\.path) == ["/_admin/sessions/S-1"])
+        #expect(await transport.sent.last?.path == "/_admin/sessions/S-1")
 
         let none = try await handler(StubTransport([:]))
             .handle(request(#"{"protocol":1,"verb":"flow_end","state":null,"passed":false}"#))

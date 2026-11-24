@@ -3,9 +3,8 @@ import OSLog
 import SwiftCommons
 
 /// What the run's moqserver session saw, read just before `flow_end` releases it and written to
-/// `moq-session.json` in the run's output directory. amoo doesn't surface a `flow_end` reply, so
-/// this file is how a person or a triage tool learns that no request reached the session, or that
-/// some went unmatched or were rejected. The bridge records the counts and judges nothing.
+/// `moq-session.json` in the run's output directory, so a person or a triage tool can see that no
+/// request reached the session, or that some went unmatched or were rejected.
 public struct SessionSummary: Codable, Sendable, Equatable {
     public static let fileName = "moq-session.json"
     public static let schemaVersion = 1
@@ -18,10 +17,13 @@ public struct SessionSummary: Codable, Sendable, Equatable {
     public var rejected: Int?
     /// As amoo reported it. `false` covers both "launched no app" and "left an app running".
     public var appTerminated: Bool?
+    /// As amoo reported it (amoo 686317a and later); nil from older amoo.
+    public var appsLaunched: Int?
 
     enum CodingKeys: String, CodingKey {
         case schema, session, requests, unmatched, rejected
         case appTerminated = "app_terminated"
+        case appsLaunched = "apps_launched"
     }
 
     /// The three queries, with the same bodies the matching steps send, so a count here and a
@@ -38,9 +40,9 @@ public struct SessionSummary: Codable, Sendable, Equatable {
 
     /// Reads the counts. A failed query leaves its count `nil` instead of failing the release.
     static func read(
-        client: AdminClient, session: String, appTerminated: Bool?
+        client: AdminClient, session: String, appTerminated: Bool?, appsLaunched: Int?
     ) async -> SessionSummary {
-        var summary = SessionSummary(session: session, appTerminated: appTerminated)
+        var summary = SessionSummary(session: session, appTerminated: appTerminated, appsLaunched: appsLaunched)
         for query in queries {
             do {
                 let verdict = try await client.query(query.body, session: session)

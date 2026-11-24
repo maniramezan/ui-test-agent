@@ -36,6 +36,9 @@ public struct FlowRequest<State: Codable & Sendable>: Decodable, Sendable {
     /// Sent with `flow_end` by amoo 638c4b8 and later: whether every app the run launched was ended
     /// (`terminate_app_at_end`). nil from older amoo builds.
     public var appTerminated: Bool?
+    /// Sent with `flow_end` by amoo 686317a and later: how many apps the run launched. With it,
+    /// `app_terminated: false` and `apps_launched: 0` means there was nothing to end.
+    public var appsLaunched: Int?
 
     enum CodingKeys: String, CodingKey {
         case `protocol`
@@ -46,6 +49,7 @@ public struct FlowRequest<State: Codable & Sendable>: Decodable, Sendable {
         case step
         case passed
         case appTerminated = "app_terminated"
+        case appsLaunched = "apps_launched"
     }
 }
 
