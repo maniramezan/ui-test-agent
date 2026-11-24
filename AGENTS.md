@@ -34,11 +34,20 @@ Rules that follow from this:
      `moq.assert_no_rejected_requests`, `moq.assert_no_unmatched_requests`, `moq.assert_all_requests_carry_session`.
    - Lifecycle: at flow start, attach to or start moqserver and create an isolated session (`POST /_admin/sessions`),
      returning launch-env keys amoo merges into app launches; release the session at flow end.
-   - Codegen: emit `MoqClient` calls for XCUITest and Espresso/Compose; names and predicates match moqserver's
-     clients exactly.
+   - Codegen: emit `MoqClient` calls for XCUITest (built) and Espresso/Compose (not yet); names and predicates
+     match moqserver's clients exactly.
    - The wire contract with amoo is amoo's `docs/flow-extensions.md` (protocol 1, amoo `2579744`): verbs
      `describe`, `flow_start`, `step`, `flow_end`, one JSON request on stdin and one reply on stdout. `describe` lists
-     only implemented steps, so a flow using an unbuilt one fails before step 1. A planned `emit` verb drives codegen.
+     only implemented steps, so a flow using an unbuilt one fails before step 1.
+   - `emit` (amoo `508021a`) is built for XCUITest; Espresso and Compose answer `ok: false`. `amoo generate test`
+     gets `import MoqTestSupport`, a `moqSession` member with two helpers, setup lines that open one session per
+     test and set the config's launch keys on `app`, a teardown line that closes it, and one `MoqClient` call per
+     step. A `moq.mark` becomes a local (`before-delete` → `moqMarkBeforeDelete`) that later `since` arguments
+     name. `assert_session_reached` polls `query(MoqRequestQuery())` in a generated helper, since `MoqClient` has
+     no call for it. amoo sends no flow variables with `emit`, so the config is found through
+     `AMOO_EXT_MOQ_CONFIG` only, at generate time; the generated test reads `MOQ_PORT` at run time
+     (`TEST_RUNNER_MOQ_PORT=<port> xcodebuild test`), defaulting to the config's port. The test target must
+     depend on moqserver's `server/MoqTestSupport`, which is a local-path package today.
    - moqserver's request assertions are frozen (server `6b6c130`, clients `5b2ecf7`): `POST /_admin/requests/query`,
      `POST /_admin/requests/mark`, and `times` on the variant route. Specs: its `docs/ADMIN_API.md` ("Request
      queries"), `server/MoqTestSupport/README.md` and `clients/kotlin/README.md`.

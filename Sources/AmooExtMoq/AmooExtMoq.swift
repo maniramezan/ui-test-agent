@@ -8,13 +8,14 @@ struct AmooExtMoq: AsyncParsableCommand {
         commandName: "amoo-ext-moq",
         abstract: "Bridge between amoo flows and a moqserver mock server.",
         discussion: """
-            amoo runs describe, flow_start, step and flow_end for moq.* flow steps, with one JSON \
+            amoo runs describe, flow_start, step and flow_end for moq.* flow steps, and emit when it \
+            generates a test from a flow, with one JSON \
             request on stdin and one JSON reply on stdout (amoo's flow-extension protocol 1). \
             session and config are for use outside amoo: open a session before launching the \
             app, merge the printed launchEnvironment into the launch, and release it afterwards.
             """,
         subcommands: [
-            Verb.Describe.self, Verb.FlowStart.self, Verb.Step.self, Verb.FlowEnd.self,
+            Verb.Describe.self, Verb.FlowStart.self, Verb.Step.self, Verb.FlowEnd.self, Verb.Emit.self,
             Session.self, Config.self,
         ]
     )
@@ -29,6 +30,21 @@ enum Verb {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         print(String(decoding: try encoder.encode(reply), as: UTF8.self))
+    }
+
+    struct Emit: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "emit",
+            abstract: "amoo: write the MoqClient test code for the session or one moq.* step.")
+
+        func run() throws {
+            let input = FileHandle.standardInput.readDataToEndOfFile()
+            let request = try JSONDecoder().decode(EmitRequest.self, from: input)
+            let reply = try TestEmitter().handle(request)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            print(String(decoding: try encoder.encode(reply), as: UTF8.self))
+        }
     }
 
     struct Describe: AsyncParsableCommand {
