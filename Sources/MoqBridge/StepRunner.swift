@@ -126,13 +126,18 @@ struct StepRunner {
             let endpoint = try arguments.string("endpoint")
             let times = try arguments.optionalInt("times", minimum: 0)
             let headers = try Self.headerPredicates(arguments.array("headers"))
+            let parameters = try Self.queryPredicates(arguments.array("query"))
             let claims = try arguments.stringMap("claims")
             let since = try arguments.since(marks: marks)
             let timeout = try arguments.optionalInt("timeout_ms", minimum: 0) ?? 0
             try arguments.finish()
+            if !parameters.isEmpty {
+                try require("request-query-parameters", for: tool)
+            }
             var query: [String: JSONValue] = ["endpoint": .string(endpoint)]
             query["since"] = since.map(JSONValue.number)
             query["headers"] = headers.isEmpty ? nil : .array(headers)
+            query["query"] = parameters.isEmpty ? nil : .array(parameters)
             query["claims"] = claims.isEmpty ? nil : .object(claims.mapValues(JSONValue.string))
             query["times"] = times.map { .number(Double($0)) }
             return try await verdict(of: .object(query), timeout: .milliseconds(timeout))
@@ -191,6 +196,36 @@ struct StepRunner {
                 )
             }
             try await Task.sleep(for: min(Self.pollInterval, remaining))
+        }
+    }
+
+    /// Flow query-parameter expectations, one predicate per item like MoqClient's
+    /// `MoqQueryExpectation`: `{name, present: true|false}`, `{name, equals}` or
+    /// `{name, fingerprint_of}`. Names are case-sensitive.
+    static func queryPredicates(_ items: [JSONValue]) throws -> [JSONValue] {
+        try items.enumerated().map { index, item in
+            let label = "query[\(index)]"
+            guard case .object(let fields) = item, case .string(let name) = fields["name"], !name.isEmpty
+            else {
+                throw BridgeError.invalidArgument(name: label, reason: "needs a non-empty name")
+            }
+            let predicates = fields.filter { $0.key != "name" }
+            guard predicates.count == 1, let (key, value) = predicates.first else {
+                throw BridgeError.invalidArgument(
+                    name: label, reason: "needs exactly one of present, equals, fingerprint_of")
+            }
+            switch (key, value) {
+            case ("present", .bool(let present)):
+                return .object(["name": .string(name), "present": .bool(present)])
+            case ("equals", .string(let expected)):
+                return .object(["name": .string(name), "equals": .string(expected)])
+            case ("fingerprint_of", .string(let credential)):
+                return .object(["name": .string(name), "fingerprintOf": .string(credential)])
+            default:
+                throw BridgeError.invalidArgument(
+                    name: "\(label).\(key)",
+                    reason: "present takes true or false; equals and fingerprint_of take a string")
+            }
         }
     }
 

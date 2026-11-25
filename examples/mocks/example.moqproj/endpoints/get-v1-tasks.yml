@@ -13,16 +13,20 @@ auth:
 request_rules:
   query_params:
     - name: "limit"
-      match_type: matches_regex
-      match: "^([1-9][0-9]?|100)$"
+      match_type: gte
+      match: "1"
+      required: true
+    - name: "limit"
+      match_type: lte
+      match: "100"
       required: true
     - name: "page"
-      match_type: matches_regex
-      match: "^[1-9][0-9]*$"
+      match_type: gte
+      match: "1"
       required: true
     - name: "status"
       match_type: matches_regex
-      match: "^(all|open|done)$"
+      match: "^(?:all|open|done)$"
       required: true
   cookies:
     - name: "example_session"

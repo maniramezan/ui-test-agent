@@ -74,9 +74,9 @@
       "arguments": { "id": "tasks.count", "contains_text": "1 task" }
     },
     {
-      "name": "The list was asked for once more, signed in",
+      "name": "The list was asked for once more, signed in, for done tasks",
       "tool": "moq.assert_request",
-      "arguments": { "endpoint": "GET /v1/tasks", "times": 1, "headers": [{"name": "Authorization", "scheme": "Bearer"}, {"name": "Cookie", "present": true}], "since": "before-filter", "timeout_ms": 3000 }
+      "arguments": { "endpoint": "GET /v1/tasks", "times": 1, "headers": [{"name": "Authorization", "scheme": "Bearer"}, {"name": "Cookie", "present": true}], "query": [{"name": "status", "equals": "done"}], "since": "before-filter", "timeout_ms": 3000 }
     },
     {
       "name": "No request was refused",

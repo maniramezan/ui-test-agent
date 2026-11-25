@@ -99,8 +99,15 @@ struct TestEmitterTests {
                 .lines == [
                     #"_ = try moq().assertAllRequestsCarrySession(claims: ["sub": "user-1"], includeUnattributed: true, since: 1700000000.0)"#
                 ])
-        #expect(try step("assert_session_reached", #"{"timeout_ms":5000}"#).lines == ["try moqAwaitSessionReached(timeout: 5)"])
-        #expect(try step("assert_session_reached").lines == ["try moqAwaitSessionReached(timeout: 0)"])
+        #expect(try step("assert_session_reached", #"{"timeout_ms":5000}"#).lines == ["_ = try moq().assertRequest(timeout: 5)"])
+        #expect(try step("assert_session_reached").lines == ["_ = try moq().assertRequest()"])
+        #expect(
+            try step(
+                "assert_request",
+                #"{"endpoint":"GET /v1/tasks","times":1,"query":[{"name":"status","equals":"done"},{"name":"page","present":true},{"name":"cursor","present":false},{"name":"api_key","fingerprint_of":"k-1"}],"claims":{"sub":"user-1"}}"#
+            ).lines == [
+                #"_ = try moq().assertRequest(endpoint: "GET /v1/tasks", times: 1, query: [.equals("status", "done"), .present("page"), .absent("cursor"), .fingerprint("api_key", of: "k-1")], claims: ["sub": "user-1"])"#
+            ])
     }
 
     @Test("assert_request carries every predicate, one MoqHeaderExpectation per header item")

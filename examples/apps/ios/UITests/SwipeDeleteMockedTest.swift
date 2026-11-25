@@ -11,24 +11,10 @@ final class SwipeDeleteMockedTest: XCTestCase {
     private func moq() throws -> MoqClient {
         try XCTUnwrap(moqSession, "No moqserver session: setUp did not finish")
     }
-    /// Passes once any request has reached this test's moqserver session. A launch without
-    /// the session key would send the app elsewhere, and every other check would then pass
-    /// on an empty history.
-    private func moqAwaitSessionReached(timeout: TimeInterval) throws {
-        let client = try moq()
-        let deadline = Date().addingTimeInterval(timeout)
-        while try !client.query(MoqRequestQuery()).ok {
-            guard Date() < deadline else {
-                XCTFail("No request reached this test's moqserver session")
-                return
-            }
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-    }
     private lazy var app = XCUIApplication()
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         let moqPort = ProcessInfo.processInfo.environment["MOQ_PORT"] ?? "8080"
         let moqAdminURL = try XCTUnwrap(URL(string: "http://127.0.0.1:\(moqPort)"))
@@ -42,7 +28,7 @@ final class SwipeDeleteMockedTest: XCTestCase {
         app.launch()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         if testRun?.failureCount ?? 0 > 0 {
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "Failure screenshot"
@@ -55,7 +41,7 @@ final class SwipeDeleteMockedTest: XCTestCase {
             add(hierarchy)
         }
         try moqSession?.closeSession()
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     private func waitForExistence(
@@ -134,7 +120,7 @@ final class SwipeDeleteMockedTest: XCTestCase {
         submit.tap()
         let count = app.descendants(matching: .any)["tasks.count"]
         waitForHittability(count, named: "count", timeout: 10.0)
-        try moqAwaitSessionReached(timeout: 5)
+        _ = try moq().assertRequest(timeout: 5)
         let count2 = app.descendants(matching: .any).matching(identifier: "tasks.count").matching(NSPredicate(format: "label CONTAINS %@", "3 tasks")).firstMatch
         waitForHittability(count2, named: "count2", timeout: 5.0)
         _ = try moq().assertRequest(endpoint: "GET /v1/tasks", times: 1, headers: [.scheme("Authorization", "Bearer"), .present("Cookie")], claims: ["sub": "user-1"])

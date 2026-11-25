@@ -81,6 +81,42 @@ struct RequestCheckTests {
                     """#)))
     }
 
+    @Test("assert_request sends query-parameter predicates as the client does, and needs the server to capture them")
+    func assertRequestQueryParameters() async throws {
+        let arguments = #"""
+            {"endpoint":"GET /v1/tasks","times":1,
+             "query":[{"name":"status","equals":"done"},{"name":"page","present":true},
+                      {"name":"api_key","fingerprint_of":"k-1"}]}
+            """#
+        let (reply, sent) = try await run(
+            "assert_request", arguments: arguments,
+            state: Self.state(capabilities: ["request-query", "request-query-parameters"]),
+            replies: ["POST /_admin/requests/query": [.status(200, body: Self.passing)]])
+        #expect(reply.ok == true)
+        #expect(
+            sent.first?.body
+                == (try object(
+                    #"""
+                    {"endpoint":"GET /v1/tasks","times":1,
+                     "query":[{"name":"status","equals":"done"},{"name":"page","present":true},
+                              {"name":"api_key","fingerprintOf":"k-1"}]}
+                    """#)))
+
+        let (old, unsent) = try await run(
+            "assert_request", arguments: arguments, state: Self.state(capabilities: ["request-query"]),
+            replies: [:])
+        #expect(old.ok == false)
+        #expect(old.message?.contains("request-query-parameters") == true)
+        #expect(unsent.isEmpty)
+
+        let (bad, _) = try await run(
+            "assert_request",
+            arguments: #"{"endpoint":"GET /v1/tasks","query":[{"name":"status","equals":"done","present":true}]}"#,
+            replies: [:])
+        #expect(bad.ok == false)
+        #expect(bad.message?.contains("exactly one of present, equals, fingerprint_of") == true)
+    }
+
     @Test("assert_request leaves out empty headers, claims, times and since, like the client")
     func assertRequestMinimal() async throws {
         let (_, sent) = try await run(

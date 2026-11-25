@@ -40,11 +40,11 @@ Rules that follow from this:
      `describe`, `flow_start`, `step`, `flow_end`, one JSON request on stdin and one reply on stdout. `describe` lists
      only implemented steps, so a flow using an unbuilt one fails before step 1.
    - `emit` (amoo `508021a`) is built for XCUITest; Espresso and Compose answer `ok: false`. `amoo generate test`
-     gets `import MoqTestSupport`, a `moqSession` member with two helpers, setup lines that open one session per
+     gets `import MoqTestSupport`, a `moqSession` member with a `moq()` accessor, setup lines that open one session per
      test and set the config's launch keys on `app`, a teardown line that closes it, and one `MoqClient` call per
      step. A `moq.mark` becomes a local (`before-delete` → `moqMarkBeforeDelete`) that later `since` arguments
-     name. `assert_session_reached` polls `query(MoqRequestQuery())` in a generated helper, since `MoqClient` has
-     no call for it. amoo sends no flow variables with `emit`, so the config is found through
+     name. `assert_session_reached` becomes `assertRequest(timeout:)` with no endpoint, which passes once any
+     request reached the session (moqserver `d9ba477`). amoo sends no flow variables with `emit`, so the config is found through
      `AMOO_EXT_MOQ_CONFIG` only, at generate time; the generated test reads `MOQ_PORT` at run time
      (`TEST_RUNNER_MOQ_PORT=<port> xcodebuild test`), defaulting to the config's port. The test target must
      depend on moqserver's `server/MoqTestSupport`, which is a local-path package today.
@@ -67,14 +67,19 @@ Rules that follow from this:
      fail the step):
      - `select_variant {endpoint, variant, operation?, times?}`, where `times` makes a one-shot override.
      - `mark {name}` stores the server time in the run state.
-     - `assert_request {endpoint, times?, headers?, claims?, since?, timeout_ms?}`. Each `headers` item is
+     - `assert_request {endpoint, times?, headers?, query?, claims?, since?, timeout_ms?}`. Each `headers` item is
        `{name}` plus exactly one of `present` (bool), `scheme`, `fingerprint_of` or `equals`, one-to-one with
-       `MoqHeaderExpectation`.
+       `MoqHeaderExpectation`. Each `query` item is `{name}` plus exactly one of `present` (bool), `equals` or
+       `fingerprint_of`, one-to-one with `MoqQueryExpectation`; names are case-sensitive. `query` needs the
+       capability `request-query-parameters` (moqserver `d9ba477`) and a server started with
+       `--capture-request-query`; without capture the server answers 409 and the step fails with its reason.
+       A failed check lists near misses with the query that was sent.
      - `assert_no_rejected_requests {since?}`.
      - `assert_all_requests_carry_session {claims?, include_unattributed?, since?}`.
      - `assert_session_reached {timeout_ms?}` passes once any request reaches this run's session; put it right after
        the app's launch. A launch without the session key sends the app to its real backend, and every other check
-       would then pass on an empty history. It sends an unfiltered query (`{}`), which has no `MoqClient` helper yet.
+       would then pass on an empty history. It sends an unfiltered query (`{}`), as `MoqClient.assertRequest()` with
+       no endpoint does.
      - `since` is a mark name or Unix seconds on the server clock.
    - `endpoint` is a moqserver endpoint key as `GET /_admin/endpoints` lists it. From moqserver `543bd37` a
      trailing-slash difference resolves, and an unknown key answers 400 with the closest key, which fails the
@@ -217,7 +222,8 @@ mocks, `<case>.moq.amoo.json` against a moqserver session with request checks.
 ```bash
 swift build --package-path examples/server
 examples/server/.build/debug/example-server --port 8081
-moqserver serve --project examples/mocks/example.moqproj --port <port> --capture-request-headers
+moqserver serve --project examples/mocks/example.moqproj --port <port> --capture-request-headers \
+  --capture-request-query
 
 cd examples/apps/ios && xcodegen generate
 xcodebuild build -project ExampleApp.xcodeproj -scheme ExampleApp -derivedDataPath build \
@@ -235,14 +241,14 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
   provider) and the app joins it through `APP_TEST_SESSION`, so real-backend runs are as independent as mocked
   ones and both kinds run in parallel. `POST /_test/reset` puts a data set's seed back, and
   `DELETE /_test/sessions/<id>` drops one.
-- `mocks/example.moqproj` is `moq-author import openapi` of `openapi.yaml` (moqserver `bf60c2d` or later, which
-  maps the bearer-plus-cookie security, copies a response header that has an `example`, and names variants after
-  their status: `ok`, `unauthorized`, `notFound`), plus three additions the importer can't make: value rules for
-  the list's query parameters (`matches_regex`), extra variants (`openOnly` and `doneOnly` matched on the
-  `status` query, `empty`, `slow`, `malformed`, `serverError`, `serviceUnavailable`), and the `jwt-claims` add-on
-  in `project.yml`, which has no `moq-author` command yet.
+- `mocks/example.moqproj` is `moq-author import openapi` of `openapi.yaml` (moqserver `7f0d309` or later, which
+  maps the bearer-plus-cookie security, copies a response header that has an `example`, names variants after
+  their status (`ok`, `unauthorized`, `notFound`) and turns the query parameters' `enum`, `minimum` and
+  `maximum` into value rules), then `moq-author addon enable --id jwt-claims`, plus the variants a spec can't
+  describe: `openOnly` and `doneOnly` matched on the `status` query, `empty`, `slow`, `malformed`, `serverError`
+  and `serviceUnavailable`.
 - Cases so far, each as a flow and a generated test: `swipe-delete` (real, moq), `filter` (real, moq: the query
-  string is checked by the bundle's value rules and by which variant answers), `delete-all` (real, moq: Edit, the
+  string is checked by the bundle's value rules and by `query` on `moq.assert_request`), `delete-all` (real, moq: Edit, the
   confirmation alert, the empty state), `account-disabled` (real: `auth.disable_user` mid-session) and
   `load-failure` (moq: a one-shot 500, then Try Again).
 - iOS reports each button of a SwiftUI alert twice, with the same id. A tap on one names its pick

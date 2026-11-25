@@ -11,24 +11,10 @@ final class LoadFailureMockedTest: XCTestCase {
     private func moq() throws -> MoqClient {
         try XCTUnwrap(moqSession, "No moqserver session: setUp did not finish")
     }
-    /// Passes once any request has reached this test's moqserver session. A launch without
-    /// the session key would send the app elsewhere, and every other check would then pass
-    /// on an empty history.
-    private func moqAwaitSessionReached(timeout: TimeInterval) throws {
-        let client = try moq()
-        let deadline = Date().addingTimeInterval(timeout)
-        while try !client.query(MoqRequestQuery()).ok {
-            guard Date() < deadline else {
-                XCTFail("No request reached this test's moqserver session")
-                return
-            }
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-    }
     private lazy var app = XCUIApplication()
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         let moqPort = ProcessInfo.processInfo.environment["MOQ_PORT"] ?? "8080"
         let moqAdminURL = try XCTUnwrap(URL(string: "http://127.0.0.1:\(moqPort)"))
@@ -42,7 +28,7 @@ final class LoadFailureMockedTest: XCTestCase {
         app.launch()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         if testRun?.failureCount ?? 0 > 0 {
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "Failure screenshot"
@@ -55,7 +41,7 @@ final class LoadFailureMockedTest: XCTestCase {
             add(hierarchy)
         }
         try moqSession?.closeSession()
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     private func waitForExistence(
@@ -137,7 +123,7 @@ final class LoadFailureMockedTest: XCTestCase {
         waitForHittability(error, named: "error", timeout: 10.0)
         let error2 = app.descendants(matching: .any).matching(identifier: "tasks.error").matching(NSPredicate(format: "label CONTAINS %@", "The server had a problem (500)")).firstMatch
         waitForHittability(error2, named: "error2", timeout: 5.0)
-        try moqAwaitSessionReached(timeout: 5)
+        _ = try moq().assertRequest(timeout: 5)
         let retry = app.descendants(matching: .any)["tasks.retry"]
         waitForHittability(retry, named: "retry", timeout: 5.0)
         retry.tap()

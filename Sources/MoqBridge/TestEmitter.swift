@@ -117,22 +117,6 @@ public struct TestEmitter: Sendable {
             try XCTUnwrap(moqSession, "No moqserver session: setUp did not finish")
         }
         """,
-        """
-        /// Passes once any request has reached this test's moqserver session. A launch without
-        /// the session key would send the app elsewhere, and every other check would then pass
-        /// on an empty history.
-        private func moqAwaitSessionReached(timeout: TimeInterval) throws {
-            let client = try moq()
-            let deadline = Date().addingTimeInterval(timeout)
-            while try !client.query(MoqRequestQuery()).ok {
-                guard Date() < deadline else {
-                    XCTFail("No request reached this test's moqserver session")
-                    return
-                }
-                Thread.sleep(forTimeInterval: 0.1)
-            }
-        }
-        """,
     ]
 
     // MARK: Steps
@@ -172,6 +156,7 @@ public struct TestEmitter: Sendable {
             let endpoint = try arguments.string("endpoint")
             let times = try arguments.optionalInt("times", minimum: 0)
             let headers = try StepRunner.headerPredicates(arguments.array("headers")).map(headerExpectation)
+            let parameters = try StepRunner.queryPredicates(arguments.array("query")).map(queryExpectation)
             let claims = try arguments.stringMap("claims")
             let since = try since(&arguments)
             let timeout = try arguments.optionalInt("timeout_ms", minimum: 0)
@@ -182,6 +167,9 @@ public struct TestEmitter: Sendable {
             }
             if !headers.isEmpty {
                 parts.append("headers: [\(headers.joined(separator: ", "))]")
+            }
+            if !parameters.isEmpty {
+                parts.append("query: [\(parameters.joined(separator: ", "))]")
             }
             if !claims.isEmpty {
                 parts.append("claims: \(dictionary(claims))")
@@ -219,7 +207,9 @@ public struct TestEmitter: Sendable {
         case "assert_session_reached":
             let timeout = try arguments.optionalInt("timeout_ms", minimum: 0) ?? 0
             try arguments.finish()
-            return ["try moqAwaitSessionReached(timeout: \(seconds(timeout)))"]
+            // With no endpoint and no count, the client's check passes once any request has
+            // reached the session.
+            return ["_ = try moq().assertRequest(\(timeout > 0 ? "timeout: \(seconds(timeout))" : ""))"]
 
         case "assert_no_unmatched_requests":
             try arguments.finish()
@@ -267,6 +257,25 @@ public struct TestEmitter: Sendable {
         }
         throw BridgeError.invalidArgument(
             name: "headers", reason: "needs exactly one of present, scheme, fingerprint_of, equals")
+    }
+
+    /// One wire predicate (`{name, present | equals | fingerprintOf}`) as its
+    /// `MoqQueryExpectation` case.
+    private static func queryExpectation(_ predicate: JSONValue) throws -> String {
+        guard case .object(let fields) = predicate, case .string(let name) = fields["name"] else {
+            throw BridgeError.invalidArgument(name: "query", reason: "needs a non-empty name")
+        }
+        if case .bool(let present) = fields["present"] {
+            return present ? ".present(\(literal(name)))" : ".absent(\(literal(name)))"
+        }
+        if case .string(let value) = fields["equals"] {
+            return ".equals(\(literal(name)), \(literal(value)))"
+        }
+        if case .string(let credential) = fields["fingerprintOf"] {
+            return ".fingerprint(\(literal(name)), of: \(literal(credential)))"
+        }
+        throw BridgeError.invalidArgument(
+            name: "query", reason: "needs exactly one of present, equals, fingerprint_of")
     }
 
     private static func route(_ endpoint: EndpointRef) -> String {

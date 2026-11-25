@@ -13,5 +13,4 @@ defaults:
     packet_loss_percent: 0.0
 
 addons:
-  jwt-claims:
-    verify_signature: false
+  "jwt-claims": {"verify_signature": false}
