@@ -118,7 +118,7 @@ final class FilterMockedTest: XCTestCase {
         let submit = app.descendants(matching: .any)["signIn.submit"]
         waitForHittability(submit, named: "submit", timeout: 5.0)
         submit.tap()
-        let count = app.descendants(matching: .any)["tasks.count"]
+        let count = app.descendants(matching: .any).matching(identifier: "tasks.count").firstMatch
         waitForHittability(count, named: "count", timeout: 10.0)
         let count2 = app.descendants(matching: .any).matching(identifier: "tasks.count").matching(NSPredicate(format: "label CONTAINS %@", "3 tasks")).firstMatch
         waitForHittability(count2, named: "count2", timeout: 5.0)
@@ -127,9 +127,11 @@ final class FilterMockedTest: XCTestCase {
         let filter = app.descendants(matching: .any)["tasks.filter"]
         waitForHittability(filter, named: "filter", timeout: 5.0)
         filter.tap()
-        let done = app.descendants(matching: .any)["filter.done"]
+        let done = app.descendants(matching: .any).matching(identifier: "filter.done").firstMatch
         waitForHittability(done, named: "done", timeout: 5.0)
-        done.tap()
+        let done2 = app.descendants(matching: .any)["filter.done"]
+        waitForHittability(done2, named: "done2", timeout: 5.0)
+        done2.tap()
         waitForAbsence(done, named: "done", timeout: 5.0)
         let filterLabel = app.descendants(matching: .any).matching(identifier: "tasks.filterLabel").matching(NSPredicate(format: "label CONTAINS %@", "Done")).firstMatch
         waitForHittability(filterLabel, named: "filterLabel", timeout: 5.0)

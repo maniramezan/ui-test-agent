@@ -11,10 +11,10 @@ packages:
   APITrace:
     url: https://github.com/ArjangConsulting/ios-network-recorder
     exactVersion: 1.5.0
-  # moqserver's Swift test client is a nested package, so it can't be pinned by URL yet. This
-  # path expects a moqserver checkout next to this repo.
-  MoqTestSupport:
-    path: ../../../../moqserver/server/MoqTestSupport
+  # moqserver has no release tag yet, so its Swift test client is pinned by commit.
+  moqserver:
+    url: https://github.com/ArjangConsulting/moqserver
+    revision: 79234c00de6047456c63620bce159585be8d5e81
 targets:
   ExampleApp:
     type: application
@@ -58,5 +58,5 @@ targets:
         TEST_TARGET_NAME: ExampleApp
     dependencies:
       - target: ExampleApp
-      - package: MoqTestSupport
+      - package: moqserver
         product: MoqTestSupport

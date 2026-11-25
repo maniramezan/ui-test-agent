@@ -296,11 +296,10 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
   (`.accessibilityElement(children: .combine)`).
 - `apps/ios/UITests/` holds the XCUITests amoo generated from the flows, unedited. Regenerate one with
   `amoo generate plan --from-flow <flow> --out <dir>`, then
-  `amoo generate test --plan <dir>/plan.json --test-name <Name> --out apps/ios/UITests`, with
-  `AMOO_EXTENSION_PATH` set, plus `AMOO_EXT_MOQ_CONFIG=$PWD/moq.json` for a mocked flow or
-  `AMOO_EXT_AUTH_CONFIG=$PWD/moq.json` for a real-backend one. amoo doesn't overwrite a generated file, so
-  delete the old one first. The target takes `MoqTestSupport` by relative path, so it needs a moqserver checkout
-  next to this repo.
+  `amoo generate test --plan <dir>/plan.json --test-name <Name> --out apps/ios/UITests`, run from `examples/`
+  with `AMOO_EXTENSION_PATH` set; the extensions find `moq.json` through the flow's own variables. amoo doesn't
+  overwrite a generated file, so delete the old one first. The target takes moqserver's `MoqTestSupport`
+  product by repository URL, pinned to a commit until moqserver tags releases.
 
   ```bash
   TEST_RUNNER_MOQ_PORT=<port> xcodebuild test -project ExampleApp.xcodeproj -scheme ExampleApp \
@@ -314,18 +313,16 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
 - **"Save Password?" on iOS simulators.** Once an XCUITest has typed into a password field on a simulator, iOS
   offers to save the password after every sign-in there, for amoo flows too. On iOS 27.2 the sheet is outside
   the app's element tree: the tree shrinks to the application element, the failed step names no dialog, and
-  amoo's `dismiss_system_dialogs` has nothing to press. Turn password AutoFill off on each simulator used for
-  sign-in tests, while it is shut down:
-
-  ```bash
-  plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO \
-    ~/Library/Developer/CoreSimulator/Devices/<udid>/data/Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist
-  ```
+  amoo's `dismiss_system_dialogs` has nothing to press (from amoo `17577fa` the failure carries
+  `only_root_element: true`). Turn password AutoFill off on each simulator used for sign-in tests:
+  `amoo env up --platform ios --disable-password-autofill` (amoo `17577fa`) does it before the simulator boots
+  and reports `device.password_autofill`; a simulator that is already running is left alone, with the
+  `xcrun simctl shutdown` to run first. The setting stays on the simulator. It is the
+  `restrictedBool.allowPasswordAutoFill` value in the simulator's `UserSettings.plist`.
 
   The first sign-in after the change may still show the sheet once. Measured on the example: with AutoFill on,
   0 of 3 flow runs passed after a fresh boot; with it off, 18 of 19, and the generated tests passed on three
-  simulators in parallel. A simulator that has never booted has no `UserSettings.plist`
-  yet; boot it once first.
+  simulators in parallel.
 
 ## Conventions
 

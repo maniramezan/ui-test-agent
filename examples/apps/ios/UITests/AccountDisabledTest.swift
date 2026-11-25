@@ -33,15 +33,15 @@ final class AccountDisabledTest: XCTestCase {
     }
     private lazy var app = XCUIApplication()
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app.launchEnvironment["APP_TEST_SESSION"] = "\(authSession)"
         app.launchEnvironment["APP_BASE_URL"] = "http://127.0.0.1:8081"
         app.launch()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         if testRun?.failureCount ?? 0 > 0 {
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "Failure screenshot"
@@ -54,7 +54,7 @@ final class AccountDisabledTest: XCTestCase {
             add(hierarchy)
         }
         _ = try? authCall("DELETE", "/_test/sessions/\(authSession)")
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     private func waitForExistence(
@@ -131,13 +131,13 @@ final class AccountDisabledTest: XCTestCase {
         let submit = app.descendants(matching: .any)["signIn.submit"]
         waitForHittability(submit, named: "submit", timeout: 5.0)
         submit.tap()
-        let count = app.descendants(matching: .any)["tasks.count"]
+        let count = app.descendants(matching: .any).matching(identifier: "tasks.count").firstMatch
         waitForHittability(count, named: "count", timeout: 10.0)
         try authExpect("PUT", "/_test/accounts/user@example.com/disabled")
         let task025Row = app.descendants(matching: .any)["tasks.row.task-025"]
         waitForHittability(task025Row, named: "task025Row", timeout: 5.0)
         task025Row.tap()
-        let error = app.descendants(matching: .any)["signIn.error"]
+        let error = app.descendants(matching: .any).matching(identifier: "signIn.error").firstMatch
         waitForHittability(error, named: "error", timeout: 10.0)
         let error2 = app.descendants(matching: .any).matching(identifier: "signIn.error").matching(NSPredicate(format: "label CONTAINS %@", "This account is disabled")).firstMatch
         waitForHittability(error2, named: "error2", timeout: 5.0)

@@ -33,15 +33,15 @@ final class SwipeDeleteTest: XCTestCase {
     }
     private lazy var app = XCUIApplication()
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app.launchEnvironment["APP_TEST_SESSION"] = "\(authSession)"
         app.launchEnvironment["APP_BASE_URL"] = "http://127.0.0.1:8081"
         app.launch()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         if testRun?.failureCount ?? 0 > 0 {
             let screenshot = XCTAttachment(screenshot: app.screenshot())
             screenshot.name = "Failure screenshot"
@@ -54,7 +54,7 @@ final class SwipeDeleteTest: XCTestCase {
             add(hierarchy)
         }
         _ = try? authCall("DELETE", "/_test/sessions/\(authSession)")
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     private func waitForExistence(
@@ -131,7 +131,7 @@ final class SwipeDeleteTest: XCTestCase {
         let submit = app.descendants(matching: .any)["signIn.submit"]
         waitForHittability(submit, named: "submit", timeout: 5.0)
         submit.tap()
-        let count = app.descendants(matching: .any)["tasks.count"]
+        let count = app.descendants(matching: .any).matching(identifier: "tasks.count").firstMatch
         waitForHittability(count, named: "count", timeout: 10.0)
         let count2 = app.descendants(matching: .any).matching(identifier: "tasks.count").matching(NSPredicate(format: "label CONTAINS %@", "25 tasks")).firstMatch
         waitForHittability(count2, named: "count2", timeout: 5.0)
@@ -141,7 +141,8 @@ final class SwipeDeleteTest: XCTestCase {
         let delete = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Delete")).firstMatch
         waitForHittability(delete, named: "delete", timeout: 5.0)
         delete.tap()
-        waitForAbsence(task025Row, named: "task025Row", timeout: 5.0)
+        let task025Row2 = app.descendants(matching: .any).matching(identifier: "tasks.row.task-025").firstMatch
+        waitForAbsence(task025Row2, named: "task025Row2", timeout: 5.0)
         let count3 = app.descendants(matching: .any).matching(identifier: "tasks.count").matching(NSPredicate(format: "label CONTAINS %@", "24 tasks")).firstMatch
         waitForHittability(count3, named: "count3", timeout: 5.0)
     }

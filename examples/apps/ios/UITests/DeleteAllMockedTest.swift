@@ -118,7 +118,7 @@ final class DeleteAllMockedTest: XCTestCase {
         let submit = app.descendants(matching: .any)["signIn.submit"]
         waitForHittability(submit, named: "submit", timeout: 5.0)
         submit.tap()
-        let count = app.descendants(matching: .any)["tasks.count"]
+        let count = app.descendants(matching: .any).matching(identifier: "tasks.count").firstMatch
         waitForHittability(count, named: "count", timeout: 10.0)
         let count2 = app.descendants(matching: .any).matching(identifier: "tasks.count").matching(NSPredicate(format: "label CONTAINS %@", "3 tasks")).firstMatch
         waitForHittability(count2, named: "count2", timeout: 5.0)
@@ -126,19 +126,22 @@ final class DeleteAllMockedTest: XCTestCase {
         let edit = app.descendants(matching: .any)["tasks.edit"]
         waitForHittability(edit, named: "edit", timeout: 5.0)
         edit.tap()
-        let deleteAll = app.descendants(matching: .any)["tasks.deleteAll"]
+        let deleteAll = app.descendants(matching: .any).matching(identifier: "tasks.deleteAll").firstMatch
         waitForHittability(deleteAll, named: "deleteAll", timeout: 5.0)
         try moq().selectVariant("empty", for: "GET", path: "/v1/tasks")
         let moqMarkBeforeDeleteAll = try moq().mark()
-        waitForHittability(deleteAll, named: "deleteAll", timeout: 5.0)
-        deleteAll.tap()
+        let deleteAll2 = app.descendants(matching: .any)["tasks.deleteAll"]
+        waitForHittability(deleteAll2, named: "deleteAll2", timeout: 5.0)
+        deleteAll2.tap()
         let thisCantBeUndone = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "This can't be undone.")).firstMatch
         waitForHittability(thisCantBeUndone, named: "thisCantBeUndone", timeout: 5.0)
         let confirm = app.descendants(matching: .any).matching(identifier: "tasks.deleteAll.confirm").firstMatch
         waitForHittability(confirm, named: "confirm", timeout: 5.0)
         confirm.tap()
-        let empty = app.descendants(matching: .any)["tasks.empty"]
+        let empty = app.descendants(matching: .any).matching(identifier: "tasks.empty").firstMatch
         waitForHittability(empty, named: "empty", timeout: 10.0)
+        let empty2 = app.descendants(matching: .any)["tasks.empty"]
+        waitForHittability(empty2, named: "empty2", timeout: 5.0)
         _ = try moq().assertRequest(endpoint: "DELETE /v1/tasks", times: 1, since: moqMarkBeforeDeleteAll, timeout: 3)
         try moq().assertNoRejectedRequests()
         try moq().assertNoUnmatchedRequests()

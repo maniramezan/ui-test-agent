@@ -119,7 +119,7 @@ final class LoadFailureMockedTest: XCTestCase {
         let submit = app.descendants(matching: .any)["signIn.submit"]
         waitForHittability(submit, named: "submit", timeout: 5.0)
         submit.tap()
-        let error = app.descendants(matching: .any)["tasks.error"]
+        let error = app.descendants(matching: .any).matching(identifier: "tasks.error").firstMatch
         waitForHittability(error, named: "error", timeout: 10.0)
         let error2 = app.descendants(matching: .any).matching(identifier: "tasks.error").matching(NSPredicate(format: "label CONTAINS %@", "The server had a problem (500)")).firstMatch
         waitForHittability(error2, named: "error2", timeout: 5.0)
@@ -127,7 +127,7 @@ final class LoadFailureMockedTest: XCTestCase {
         let retry = app.descendants(matching: .any)["tasks.retry"]
         waitForHittability(retry, named: "retry", timeout: 5.0)
         retry.tap()
-        let count = app.descendants(matching: .any)["tasks.count"]
+        let count = app.descendants(matching: .any).matching(identifier: "tasks.count").firstMatch
         waitForHittability(count, named: "count", timeout: 10.0)
         let count2 = app.descendants(matching: .any).matching(identifier: "tasks.count").matching(NSPredicate(format: "label CONTAINS %@", "3 tasks")).firstMatch
         waitForHittability(count2, named: "count2", timeout: 5.0)
