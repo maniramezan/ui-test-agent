@@ -247,6 +247,9 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
   `maximum` into value rules), then `moq-author addon enable --id jwt-claims`, plus the variants a spec can't
   describe: `openOnly` and `doneOnly` matched on the `status` query, `empty`, `slow`, `malformed`, `serverError`
   and `serviceUnavailable`.
+- `cases/<case>.md` is a case as a developer, or their agent, hands it over: a title, `Platforms`, `Backends`
+  (`real`, `moq` or both), `Sign-in`, numbered `Steps` in plain language and `Expected` results. The flows and
+  generated tests of the same name are what the agent makes of it.
 - Cases so far, each as a flow and a generated test: `swipe-delete` (real, moq), `filter` (real, moq: the query
   string is checked by the bundle's value rules and by `query` on `moq.assert_request`), `delete-all` (real, moq: Edit, the
   confirmation alert, the empty state), `account-disabled` (real: `auth.disable_user` mid-session) and
