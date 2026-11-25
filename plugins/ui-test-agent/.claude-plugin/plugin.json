@@ -2,7 +2,20 @@
   "name": "ui-test-agent",
   "version": "0.1.0",
   "description": "Turn a test case into a stable amoo flow and a generated XCUITest or Compose/Espresso test, against the app's real backend or a moqserver session: the ui-test-agent subagent and the writing-ui-tests, mocking-with-moqserver and onboarding-an-app skills. Requires the amoo CLI and this repo's uita, amoo-ext-moq and amoo-ext-auth; moqserver only for mocked cases.",
+  "author": {
+    "name": "Arjang Consulting"
+  },
   "homepage": "https://github.com/maniramezan/ui-test-agent",
   "repository": "https://github.com/maniramezan/ui-test-agent",
-  "keywords": ["mobile", "ios", "android", "ui-testing", "xcuitest", "compose", "espresso", "mock-server"]
+  "license": "MIT",
+  "keywords": [
+    "mobile",
+    "ios",
+    "android",
+    "ui-testing",
+    "xcuitest",
+    "compose",
+    "espresso",
+    "mock-server"
+  ]
 }

@@ -338,6 +338,47 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
   0 of 3 flow runs passed after a fresh boot; with it off, 18 of 19, and the generated tests passed on three
   simulators in parallel.
 
+## What's next
+
+In rough order. Each names where to start.
+
+1. **Eval (piece 5).** Run the `ui-test-agent` subagent on `examples/cases/*.md`, both platforms and both
+   backends, writing into a scratch output directory, and compare with the checked-in flows and tests, which
+   are the by-hand baseline. Measure tokens, wall time, `uita repeat` pass rate, whether the generated test
+   compiles and passes on several devices, how often a person had to step in, and the kill rate below. This is
+   the first real test of the skills as instructions; fix what the agent gets wrong in the skill, not in a
+   one-off prompt.
+2. **Kill rate.** The apps take `APP_FAULT=<name>` at launch (four faults, listed in each app's
+   `LaunchSettings`). By hand, the real-backend flows catch three of four: `omit-cookie`, `ignore-filter`,
+   `skip-delete-confirmation`. `ignore-filter` is also caught by the `query` check alone. Flows have no agreed
+   way to pass a fault yet: decide a flow variable for it, then add a `uita` command or a script that runs every
+   flow under every fault and prints which survive.
+3. **Pull-to-refresh case.** `drop-authorization-on-refresh` is invisible in the UI (a retry hides it), so only
+   a mocked flow can catch it: mark, pull the list down, then `moq.assert_request` for exactly one
+   `GET /v1/tasks` with a Bearer token since the mark. On iOS, amoo's `swipe_in_direction` down on the first
+   row never triggered the list's `.refreshable` (0 of 12 runs, at 300 to 500 points over 0.6 to 2.5 seconds);
+   the app's log showed no refresh. Not yet known whether the gesture or the app is at fault: try it by hand
+   first, then on Android.
+4. **`uita`, the rest.** `uita coverage`: which endpoint and variant pairs of a bundle no flow selects or
+   checks. Triage: classify a failed run (environment, mock-data gap, flow timing, a capability that exists,
+   else needs a person) and render a request for a tool's owner from an allowlist of fields, with a test that
+   plants a marker in every other field and proves it never appears. Command names and the output directory
+   need the user's yes.
+5. **Recording path.** A bundle from a HAR recorded on the device is untested here: on iOS the recorder
+   dropped the app's cookies while capturing (reported upstream; check for a fix, then turn capture on only
+   with `APITRACE_HAR_FILE=1` as the app does now), and the Android app doesn't include the recorder yet. The
+   fourth path, a bundle written from the app's code with `moq-author endpoint upsert`, is also unexercised.
+6. **Android loose ends.** The Gradle wrapper is committed but was never run here (its download stalled; the
+   builds used an installed Gradle of the same version). Generated Kotlin tests add their launch keys through a
+   lifecycle callback; drop that if amoo lets `emit` contribute launch extras. The auth extension assumes an
+   emulator when it turns the backend's loopback host into `10.0.2.2`; a physical device needs `adb reverse`
+   and a way to say so.
+7. **Pins.** moqserver's clients are pinned by commit (`apps/ios/project.yml`, `apps/android/gradle/libs.versions.toml`);
+   move to version pins when moqserver tags a release.
+8. **Later.** CI for this repo (`swift test --parallel`, the example server's tests, `claude plugin validate`),
+   Firebase sign-in in the example, and React Native, Kotlin Multiplatform and Flutter apps under
+   `examples/apps/` with the same cases and ids.
+
 ## Conventions
 
 - Confirm a new convention (tag notation, first version, commit style, config file names) with the user before

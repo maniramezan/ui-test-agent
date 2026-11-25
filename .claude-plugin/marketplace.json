@@ -1,7 +1,7 @@
 {
   "name": "ui-test-agent",
   "description": "ui-test-agent: turn a test case into a stable amoo flow and a generated UI test, with or without a mock server.",
-  "owner": { "name": "maniramezan" },
+  "owner": { "name": "Arjang Consulting" },
   "plugins": [
     {
       "name": "ui-test-agent",
