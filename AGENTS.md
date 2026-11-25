@@ -158,7 +158,21 @@ Rules that follow from this:
    name) and per-platform launch keys; values may use `{{baseURL}}` (built from the platform's `appHost`, e.g.
    `10.0.2.2` on an Android emulator) and `{{sessionId}}`. Add the other fields with the steps that use them.
 4. **The agent and lean skills**, packaged as a plugin. Discovery once; anything repeatable becomes an amoo flow that
-   runs on the CLI at no model cost. Two mock-data paths:
+   runs on the CLI at no model cost.
+   - The plugin is `plugins/ui-test-agent/` (version `0.1.0`), listed by `.claude-plugin/marketplace.json` at the
+     repo root. Check both with `claude plugin validate plugins/ui-test-agent` and `claude plugin validate .`.
+   - `agents/ui-test-agent.md`: takes one case (the fields of `examples/cases/<case>.md`), an app repo, a
+     platform and a backend, and returns only a JSON report: the flow, the generated test, bundle changes,
+     lint and repeat counts, the generated test's result per device, and findings. It writes flows, generated
+     tests and the mock bundle, never app source.
+   - `skills/writing-ui-tests`: case → flow → `uita lint` → `uita repeat` → `amoo generate` → run in parallel.
+     `skills/mocking-with-moqserver`: a bundle from a spec, a recording or code, variants, and the `moq.*`
+     checks. `skills/onboarding-an-app`: what an app and its repo need before the first flow.
+   - Keep the skills to what a run needs and what was verified on the example; when a rule here changes (a
+     step's arguments, a tool's flag), change the skill in the same commit.
+   - Not built: running the agent against the example's cases as an eval (piece 5).
+
+   Two mock-data paths:
    - Synthesize from the app's code or an OpenAPI spec with `moq-author`.
    - Record real traffic on the device with [mobile-network-recorder](https://github.com/arjangconsulting/mobile-network-recorder)
      (its `ios` and `android` submodules are the platform libraries), export a HAR, and import it with

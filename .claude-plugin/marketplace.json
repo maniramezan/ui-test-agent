@@ -1,0 +1,13 @@
+{
+  "name": "ui-test-agent",
+  "description": "ui-test-agent: turn a test case into a stable amoo flow and a generated UI test, with or without a mock server.",
+  "owner": { "name": "maniramezan" },
+  "plugins": [
+    {
+      "name": "ui-test-agent",
+      "source": "./plugins/ui-test-agent",
+      "description": "Turn a test case into a stable amoo flow and a generated XCUITest or Compose/Espresso test, against the app's real backend or a moqserver session: the ui-test-agent subagent and the writing-ui-tests, mocking-with-moqserver and onboarding-an-app skills. Requires the amoo CLI and this repo's uita, amoo-ext-moq and amoo-ext-auth; moqserver only for mocked cases.",
+      "category": "testing"
+    }
+  ]
+}

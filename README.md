@@ -16,6 +16,17 @@ its admin routes. moqserver is the app's mocked API: it only reads the token the
 by claim and to record who made each call. Neither talks to the other, and an app that doesn't sign in through
 Firebase needs no emulator.
 
+## Install the agent and skills
+
+In Claude Code:
+
+```
+/plugin install ui-test-agent --marketplace maniramezan/ui-test-agent
+```
+
+This adds the `ui-test-agent` subagent and three skills: `writing-ui-tests`, `mocking-with-moqserver` and
+`onboarding-an-app`. They drive the command-line tools this repo builds (`swift build`) and amoo.
+
 ## Status
 
 Early design. The first piece, `amoo-ext-moq`, lets `amoo flow` open an isolated moqserver session per run and drive it with `moq.*` steps. A second, `amoo-ext-auth`, adds `auth.*` steps that disable, delete or revoke accounts and put them back at flow end, on a Firebase Auth emulator or through the app backend's own test routes. With test routes it can also give each run its own data set on the backend, so real-backend runs go in parallel. A third, `uita`, checks flows without a device (`uita lint`) and runs one many times across simulators, grouping the failures (`uita repeat`). Build all three with `swift build`; `examples/moq.json` shows the per-app config an app keeps in its own repo.
