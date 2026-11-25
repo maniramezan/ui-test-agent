@@ -234,6 +234,45 @@ struct AuthEmitterTests {
         #expect(step.requires == ["throws"])
     }
 
+    @Test("Kotlin setup gives the test a session, launch keys on the activity's intent and blocking helpers")
+    func kotlinSetup() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "auth-\(UUID().uuidString).json")
+        try Data("{\(TestRoutesTests.section)}".utf8).write(to: url)
+        // The config is found through the flow's variables, as flow_start finds it.
+        let emitter = AuthEmitter(environment: [:])
+        let reply = emitter.handle(
+            EmitRequest(framework: "compose", platform: "android", phase: "setup", vars: ["auth_config": url.path]))
+        #expect(reply.ok != false)
+        #expect(
+            reply.lines == [
+                #"authLaunchExtras["APP_BASE_URL"] = "http://10.0.2.2:8081""#,
+                #"authLaunchExtras["APP_TEST_SESSION"] = "$authSession""#,
+                "ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(authLaunchCallback)",
+            ])
+        let members = try #require(reply.members)
+        #expect(members.count == 5)
+        #expect(members[0].contains("private val authSession = UUID.randomUUID().toString()"))
+        #expect(members[3].contains(#"URL("http://10.0.2.2:8081" + path)"#))
+        #expect(members[3].contains(#"connection.setRequestProperty("X-Test-Session", authSession)"#))
+        #expect(members[4].contains("private fun authExpect("))
+        #expect(reply.imports?.contains("java.util.UUID") == true)
+        #expect(reply.requires == nil)
+
+        let teardown = emitter.handle(
+            EmitRequest(framework: "espresso", platform: "android", phase: "teardown", vars: ["moq_config": url.path]))
+        #expect(
+            teardown.lines == [
+                "ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(authLaunchCallback)",
+                #"runCatching { authCall("DELETE", "/_test/sessions/$authSession") }"#,
+            ])
+        let step = emitter.handle(
+            EmitRequest(
+                framework: "compose", platform: "android", phase: "step", vars: ["auth_config": url.path],
+                step: .init(tool: "disable_user", arguments: ["email": .string("user@example.com")])))
+        #expect(step.lines == [#"authExpect("PUT", "/_test/accounts/user@example.com/disabled")"#])
+        #expect(step.requires == nil)
+    }
+
     @Test("A step without a route, another framework, the emulator provider and a missing config answer ok: false")
     func unsupported() throws {
         let emitter = try emitter()
@@ -243,8 +282,8 @@ struct AuthEmitterTests {
                 step: .init(tool: "revoke_tokens", arguments: ["email": .string("user@example.com")])))
         #expect(noRoute.ok == false)
         #expect(noRoute.message?.contains("no revoke_tokens route") == true)
-        let espresso = emitter.handle(EmitRequest(framework: "espresso", phase: "setup"))
-        #expect(espresso.ok == false)
+        let other = emitter.handle(EmitRequest(framework: "flutter", phase: "setup"))
+        #expect(other.ok == false)
         let firebase = try self.emitter(#""auth": {"provider": "firebase-emulator", "projectId": "demo-example"}"#)
             .handle(EmitRequest(framework: "xcuitest", phase: "setup"))
         #expect(firebase.ok == false)

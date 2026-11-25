@@ -17,11 +17,20 @@ public struct EmitRequest: Decodable, Sendable {
     public var verb: String
     /// `xcuitest`, `espresso` or `compose`.
     public var framework: String
+
+    /// Whether the framework's tests are Kotlin (`espresso`, `compose`) rather than Swift.
+    public var isKotlin: Bool {
+        framework == "espresso" || framework == "compose"
+    }
+
     public var platform: String?
     /// `setup`, `teardown` or `step`.
     public var phase: String
     /// The app's test context, as amoo read it; nil when the app has none.
     public var testContext: JSONValue?
+    /// The flow's `vars` plus `amoo generate test --var` overrides: what `flow_start` gets from
+    /// `amoo flow`. Nil from amoo builds that don't send it.
+    public var vars: [String: String]?
     public var step: Step?
 
     enum CodingKeys: String, CodingKey {
@@ -31,12 +40,13 @@ public struct EmitRequest: Decodable, Sendable {
         case platform
         case phase
         case testContext = "test_context"
+        case vars
         case step
     }
 
     public init(
         framework: String, platform: String? = nil, phase: String, testContext: JSONValue? = nil,
-        step: Step? = nil
+        vars: [String: String]? = nil, step: Step? = nil
     ) {
         self.protocol = 1
         self.verb = "emit"
@@ -44,6 +54,7 @@ public struct EmitRequest: Decodable, Sendable {
         self.platform = platform
         self.phase = phase
         self.testContext = testContext
+        self.vars = vars
         self.step = step
     }
 }

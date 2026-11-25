@@ -11,7 +11,9 @@ struct TestEmitterTests {
             {"app":"sample","server":{"port":8080,"adminHost":"127.0.0.1","readinessPath":"/_admin/endpoints",
             "readinessTimeoutSeconds":30,"adminAuth":\(adminAuth)},
             "platforms":{"ios":{"appHost":"127.0.0.1","requireSession":true,"launchEnvironment":
-            {"APP_MOCK_BASE_URL":"{{baseURL}}/api","APP_MOCK_SESSION":"{{sessionId}}","APP_FIXED":"say \\"hi\\""}}}}
+            {"APP_MOCK_BASE_URL":"{{baseURL}}/api","APP_MOCK_SESSION":"{{sessionId}}","APP_FIXED":"say \\"hi\\""}},
+            "android":{"appHost":"10.0.2.2","requireSession":true,"launchEnvironment":
+            {"APP_MOCK_BASE_URL":"{{baseURL}}/api","APP_MOCK_SESSION":"{{sessionId}}"}}}}
             """
         try Data(json.utf8).write(to: url)
         return url
@@ -137,9 +139,80 @@ struct TestEmitterTests {
         let unknown = try step("record_traffic")
         #expect(unknown.ok == false)
         #expect(unknown.message?.contains("moq.record_traffic") == true)
-        let kotlin = try TestEmitter(environment: [:]).handle(EmitRequest(framework: "espresso", phase: "teardown"))
-        #expect(kotlin.ok == false)
-        #expect(kotlin.message?.contains("XCUITest only") == true)
+        let other = try TestEmitter(environment: [:]).handle(EmitRequest(framework: "flutter", phase: "teardown"))
+        #expect(other.ok == false)
+        #expect(other.message?.contains("flutter") == true)
+    }
+
+    private func kotlinStep(_ tool: String, _ arguments: String = "{}") throws -> EmitReply {
+        let arguments = try JSONDecoder().decode([String: JSONValue].self, from: Data(arguments.utf8))
+        return try TestEmitter(environment: [:]).handle(
+            EmitRequest(framework: "compose", platform: "android", phase: "step", step: .init(tool: tool, arguments: arguments)))
+    }
+
+    @Test("Kotlin setup opens a session on the host the app uses and adds the launch keys to the activity's intent")
+    func kotlinSetup() throws {
+        let url = try configFile()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // The config is found through the flow's variables, as flow_start finds it.
+        let reply = try TestEmitter(environment: [:]).handle(
+            EmitRequest(framework: "compose", platform: "android", phase: "setup", vars: ["moq_config": url.path]))
+        #expect(reply.ok == nil)
+        #expect(reply.imports == TestEmitter.kotlinImports)
+        #expect(reply.members == TestEmitter.kotlinMembers)
+        #expect(reply.requires == nil)
+        let lines = try #require(reply.lines)
+        #expect(lines.first == #"val moqPort = InstrumentationRegistry.getArguments().getString("MOQ_PORT") ?: "8080""#)
+        #expect(lines.contains(#"val moqBaseUrl = "http://10.0.2.2:$moqPort""#))
+        #expect(lines.contains("val moqClient = MoqClient(moqBaseUrl).createSession()"))
+        #expect(lines.contains(#"moqLaunchExtras["APP_MOCK_BASE_URL"] = "$moqBaseUrl/api""#))
+        #expect(lines.contains(#"moqLaunchExtras["APP_MOCK_SESSION"] = "$moqSessionId""#))
+        #expect(lines.last == "ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(moqLaunchCallback)")
+
+        let teardown = try TestEmitter(environment: [:]).handle(
+            EmitRequest(framework: "espresso", platform: "android", phase: "teardown"))
+        #expect(teardown.lines == [
+            "ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(moqLaunchCallback)",
+            "moqSession?.closeSession()",
+        ])
+    }
+
+    @Test("Each step becomes the Kotlin client's call, with the imports its expectations need")
+    func kotlinSteps() throws {
+        #expect(try kotlinStep("activate_scenario", #"{"name":"checkout-down"}"#).lines == [
+            #"moq().activateScenario("checkout-down")"#
+        ])
+        #expect(try kotlinStep("select_variant", #"{"endpoint":"get /v1/tasks","variant":"serverError","times":"1"}"#).lines == [
+            #"moq().selectVariant("serverError", "GET", "/v1/tasks", times = 1)"#
+        ])
+        #expect(try kotlinStep("select_variant", #"{"endpoint":"POST /graphql","variant":"error","operation":"GetUser"}"#).lines == [
+            #"moq().selectVariant("error", "POST", "/graphql", operation = "GetUser")"#
+        ])
+        #expect(try kotlinStep("reset_variant", #"{"endpoint":"GET /v1/tasks"}"#).lines == [
+            #"moq().resetVariant("GET", "/v1/tasks")"#
+        ])
+        #expect(try kotlinStep("mark", #"{"name":"before-delete"}"#).lines == ["val moqMarkBeforeDelete = moq().mark()"])
+        let request = try kotlinStep(
+            "assert_request",
+            #"{"endpoint":"GET /v1/tasks","times":1,"headers":[{"name":"Authorization","scheme":"Bearer"},{"name":"Cookie","present":true}],"query":[{"name":"status","equals":"done"}],"claims":{"sub":"user-1"},"since":"before-delete","timeout_ms":3000}"#)
+        #expect(request.lines == [
+            #"moq().assertRequest("GET /v1/tasks", times = 1, headers = listOf(MoqHeaderExpectation.Scheme("Authorization", "Bearer"), MoqHeaderExpectation.Present("Cookie")), claims = mapOf("sub" to "user-1"), since = moqMarkBeforeDelete, timeoutMillis = 3000, query = listOf(MoqQueryExpectation.Equals("status", "done")))"#
+        ])
+        #expect(request.imports == [TestEmitter.headerExpectationImport, TestEmitter.queryExpectationImport])
+        #expect(request.requires == nil)
+        #expect(try kotlinStep("assert_no_rejected_requests", #"{"since":"1700000000"}"#).lines == [
+            "moq().assertNoRejectedRequests(since = 1700000000.0)"
+        ])
+        #expect(try kotlinStep("assert_session_reached", #"{"timeout_ms":5000}"#).lines == ["moq().assertRequest(timeoutMillis = 5000)"])
+        #expect(try kotlinStep("assert_no_unmatched_requests").lines == ["moq().assertNoUnmatchedRequests()"])
+        #expect(
+            try kotlinStep("assert_all_requests_carry_session", #"{"claims":{"sub":"user-1"},"include_unattributed":true}"#).lines == [
+                #"moq().assertAllRequestsCarrySession(claims = mapOf("sub" to "user-1"), includeUnattributed = true)"#
+            ])
+        // A dollar sign from a flow stays text in a Kotlin string.
+        #expect(try kotlinStep("activate_scenario", #"{"name":"price $5 \"now\""}"#).lines == [
+            #"moq().activateScenario("price \$5 \"now\"")"#
+        ])
     }
 
     @Test("Text from a flow can't break out of a Swift string literal")
