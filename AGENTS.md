@@ -235,6 +235,12 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
   provider) and the app joins it through `APP_TEST_SESSION`, so real-backend runs are as independent as mocked
   ones and both kinds run in parallel. `POST /_test/reset` puts a data set's seed back, and
   `DELETE /_test/sessions/<id>` drops one.
+- `mocks/example.moqproj` is `moq-author import openapi` of `openapi.yaml` (moqserver `bf60c2d` or later, which
+  maps the bearer-plus-cookie security, copies a response header that has an `example`, and names variants after
+  their status: `ok`, `unauthorized`, `notFound`), plus three additions the importer can't make: value rules for
+  the list's query parameters (`matches_regex`), extra variants (`openOnly` and `doneOnly` matched on the
+  `status` query, `empty`, `slow`, `malformed`, `serverError`, `serviceUnavailable`), and the `jwt-claims` add-on
+  in `project.yml`, which has no `moq-author` command yet.
 - Cases so far, each as a flow and a generated test: `swipe-delete` (real, moq), `filter` (real, moq: the query
   string is checked by the bundle's value rules and by which variant answers), `delete-all` (real, moq: Edit, the
   confirmation alert, the empty state), `account-disabled` (real: `auth.disable_user` mid-session) and

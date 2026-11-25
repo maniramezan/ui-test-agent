@@ -19,28 +19,31 @@ request_rules:
     - "application/json"
 
 variants:
-  - name: "success"
-    reference_name: "success"
+  - name: "created"
+    reference_name: "created"
+    description: "The new task."
     default: true
     status: 201
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-success.json"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-created.json"
   - name: "unauthorized"
     reference_name: "unauthorized"
+    description: "The bearer token or the session cookie is missing, expired or wrong."
     status: 401
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/post-v1-tasks/v1-tasks-unauthorized.json"
-  - name: "invalid"
-    reference_name: "invalid"
+  - name: "unprocessableContent"
+    reference_name: "unprocessableContent"
+    description: "The body failed validation; `fields` names each problem."
     status: 422
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-invalid.json"
-  - name: "server-error"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-unprocessablecontent.json"
+  - name: "serverError"
     reference_name: "serverError"
     status: 500
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-server-error.json"
+    body_file: "fixtures/responses/post-v1-tasks/v1-tasks-servererror.json"

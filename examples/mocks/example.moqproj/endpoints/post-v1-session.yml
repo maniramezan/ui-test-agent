@@ -5,52 +5,45 @@ method: "POST"
 path: "/v1/session"
 tags: ["session"]
 
-auth:
-  type: none
-  verify: false
-  header_name: null
-
 request_rules:
   requires_body: true
   accepted_content_types:
     - "application/json"
 
 variants:
-  - name: "success"
-    reference_name: "success"
+  - name: "ok"
+    reference_name: "ok"
+    description: "Signed in."
     default: true
     status: 200
     headers:
       "Content-Type": "application/json"
       "Set-Cookie": "example_session=example-session; Path=/; HttpOnly; SameSite=Lax"
-    body_file: "fixtures/responses/post-v1-session/v1-session-success.json"
+    body_file: "fixtures/responses/post-v1-session/v1-session-ok.json"
   - name: "unauthorized"
     reference_name: "unauthorized"
+    description: "The bearer token or the session cookie is missing, expired or wrong."
     status: 401
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/post-v1-session/v1-session-unauthorized.json"
-  - name: "account-disabled"
-    reference_name: "accountDisabled"
+  - name: "forbidden"
+    reference_name: "forbidden"
+    description: "The account is disabled."
     status: 403
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-session/v1-session-account-disabled.json"
-  - name: "invalid"
-    reference_name: "invalid"
+    body_file: "fixtures/responses/post-v1-session/v1-session-forbidden.json"
+  - name: "unprocessableContent"
+    reference_name: "unprocessableContent"
+    description: "The body failed validation; `fields` names each problem."
     status: 422
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-session/v1-session-invalid.json"
-  - name: "server-error"
+    body_file: "fixtures/responses/post-v1-session/v1-session-unprocessablecontent.json"
+  - name: "serverError"
     reference_name: "serverError"
     status: 500
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-session/v1-session-server-error.json"
-  - name: "invalid-credentials"
-    reference_name: "invalidCredentials"
-    status: 401
-    headers:
-      "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-session/v1-session-invalid-credentials.json"
+    body_file: "fixtures/responses/post-v1-session/v1-session-servererror.json"

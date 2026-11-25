@@ -123,7 +123,7 @@ final class LoadFailureMockedTest: XCTestCase {
     }
 
     func testLoadFailureMocked() throws {
-        try moq().selectVariant("server-error", for: "GET", path: "/v1/tasks", times: 1)
+        try moq().selectVariant("serverError", for: "GET", path: "/v1/tasks", times: 1)
         let email = app.descendants(matching: .any)["signIn.email"]
         waitForHittability(email, named: "email", timeout: 10.0)
         replaceText(in: email, with: "user@example.com")

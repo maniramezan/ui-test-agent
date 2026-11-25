@@ -16,22 +16,24 @@ request_rules:
       required: true
 
 variants:
-  - name: "success"
-    reference_name: "success"
+  - name: "ok"
+    reference_name: "ok"
+    description: "How many tasks were deleted."
     default: true
     status: 200
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/delete-v1-tasks/v1-tasks-success.json"
+    body_file: "fixtures/responses/delete-v1-tasks/v1-tasks-ok.json"
   - name: "unauthorized"
     reference_name: "unauthorized"
+    description: "The bearer token or the session cookie is missing, expired or wrong."
     status: 401
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/delete-v1-tasks/v1-tasks-unauthorized.json"
-  - name: "server-error"
+  - name: "serverError"
     reference_name: "serverError"
     status: 500
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/delete-v1-tasks/v1-tasks-server-error.json"
+    body_file: "fixtures/responses/delete-v1-tasks/v1-tasks-servererror.json"

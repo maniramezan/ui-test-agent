@@ -31,6 +31,7 @@ paths:
               description: The session cookie, `example_session`.
               schema:
                 type: string
+              example: example_session=example-session; Path=/; HttpOnly; SameSite=Lax
           content:
             application/json:
               schema:

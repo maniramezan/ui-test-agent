@@ -5,33 +5,31 @@ method: "POST"
 path: "/v1/session/refresh"
 tags: ["session"]
 
-auth:
-  type: none
-  verify: false
-  header_name: null
-
 request_rules:
   cookies:
     - name: "example_session"
       required: true
 
 variants:
-  - name: "success"
-    reference_name: "success"
+  - name: "ok"
+    reference_name: "ok"
+    description: "A new token for the same session."
     default: true
     status: 200
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-success.json"
+    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-ok.json"
   - name: "unauthorized"
     reference_name: "unauthorized"
+    description: "The bearer token or the session cookie is missing, expired or wrong."
     status: 401
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-unauthorized.json"
-  - name: "account-disabled"
-    reference_name: "accountDisabled"
+  - name: "forbidden"
+    reference_name: "forbidden"
+    description: "The account is disabled."
     status: 403
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-account-disabled.json"
+    body_file: "fixtures/responses/post-v1-session-refresh/v1-session-refresh-forbidden.json"

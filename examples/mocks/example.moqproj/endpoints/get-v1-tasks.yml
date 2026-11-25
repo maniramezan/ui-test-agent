@@ -29,26 +29,29 @@ request_rules:
       required: true
 
 variants:
-  - name: "success"
-    reference_name: "success"
+  - name: "ok"
+    reference_name: "ok"
+    description: "A page of tasks."
     default: true
     status: 200
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-success.json"
-  - name: "bad-request"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-ok.json"
+  - name: "badRequest"
     reference_name: "badRequest"
+    description: "A query parameter is missing or out of range."
     status: 400
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-bad-request.json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-badrequest.json"
   - name: "unauthorized"
     reference_name: "unauthorized"
+    description: "The bearer token or the session cookie is missing, expired or wrong."
     status: 401
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/get-v1-tasks/v1-tasks-unauthorized.json"
-  - name: "open-only"
+  - name: "openOnly"
     reference_name: "openOnly"
     status: 200
     headers:
@@ -56,8 +59,8 @@ variants:
     request_match:
       query:
         "status": "open"
-    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-open-only.json"
-  - name: "done-only"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-openonly.json"
+  - name: "doneOnly"
     reference_name: "doneOnly"
     status: 200
     headers:
@@ -65,7 +68,7 @@ variants:
     request_match:
       query:
         "status": "done"
-    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-done-only.json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-doneonly.json"
   - name: "empty"
     reference_name: "empty"
     status: 200
@@ -85,15 +88,15 @@ variants:
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/get-v1-tasks/v1-tasks-malformed.json"
-  - name: "server-error"
+  - name: "serverError"
     reference_name: "serverError"
     status: 500
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-server-error.json"
-  - name: "unavailable"
-    reference_name: "unavailable"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-servererror.json"
+  - name: "serviceUnavailable"
+    reference_name: "serviceUnavailable"
     status: 503
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-unavailable.json"
+    body_file: "fixtures/responses/get-v1-tasks/v1-tasks-serviceunavailable.json"

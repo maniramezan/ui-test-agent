@@ -16,28 +16,31 @@ request_rules:
       required: true
 
 variants:
-  - name: "success"
-    reference_name: "success"
+  - name: "ok"
+    reference_name: "ok"
+    description: "The task."
     default: true
     status: 200
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-success.json"
+    body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-ok.json"
   - name: "unauthorized"
     reference_name: "unauthorized"
+    description: "The bearer token or the session cookie is missing, expired or wrong."
     status: 401
     headers:
       "Content-Type": "application/json"
     body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-unauthorized.json"
-  - name: "not-found"
+  - name: "notFound"
     reference_name: "notFound"
+    description: "No such task."
     status: 404
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-not-found.json"
-  - name: "server-error"
+    body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-notfound.json"
+  - name: "serverError"
     reference_name: "serverError"
     status: 500
     headers:
       "Content-Type": "application/json"
-    body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-server-error.json"
+    body_file: "fixtures/responses/get-v1-tasks-param/v1-tasks-id-servererror.json"

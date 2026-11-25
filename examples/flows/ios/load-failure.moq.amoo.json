@@ -11,7 +11,7 @@
     {
       "name": "The first list request fails once",
       "tool": "moq.select_variant",
-      "arguments": { "endpoint": "GET /v1/tasks", "variant": "server-error", "times": 1 }
+      "arguments": { "endpoint": "GET /v1/tasks", "variant": "serverError", "times": 1 }
     },
     {
       "name": "Launch against the mock server, in this run's session",
