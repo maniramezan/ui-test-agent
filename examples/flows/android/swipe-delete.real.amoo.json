@@ -1,0 +1,55 @@
+{
+  "platform": "android",
+  "terminate_app_at_end": true,
+  "extensions": ["auth"],
+  "vars": {
+    "app_id": "com.example.app",
+    "auth_config": "moq.json",
+    "base_url": "http://10.0.2.2:8081",
+    "email": "user@example.com",
+    "password": "example-password"
+  },
+  "steps": [
+    {
+      "name": "Launch against the local backend, in this run's session",
+      "tool": "device_launch_app",
+      "arguments": { "app_id": "${app_id}", "environment": "APP_BASE_URL=${base_url}" }
+    },
+    {
+      "name": "Sign-in screen is up",
+      "tool": "wait_for",
+      "arguments": { "id": "signIn.email", "timeout_ms": 10000 }
+    },
+    {
+      "name": "Enter email",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Sign in",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "tasks.count", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The seeded tasks are listed",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "25 tasks" }
+    },
+    {
+      "name": "Swipe the newest task away",
+      "tool": "swipe_in_direction",
+      "arguments": { "element_id": "tasks.row.task-025", "direction": "left", "distance": 300, "duration_ms": 400 }
+    },
+    {
+      "name": "One task fewer",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "24 tasks" }
+    },
+    { "tool": "screenshot", "name": "after-delete" }
+  ]
+}

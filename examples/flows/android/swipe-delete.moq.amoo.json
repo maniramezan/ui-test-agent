@@ -1,0 +1,80 @@
+{
+  "platform": "android",
+  "terminate_app_at_end": true,
+  "vars": {
+    "app_id": "com.example.app",
+    "moq_config": "moq.json",
+    "email": "user@example.com",
+    "password": "example-password"
+  },
+  "steps": [
+    {
+      "name": "Launch against the mock server, in this run's session",
+      "tool": "device_launch_app",
+      "arguments": { "app_id": "${app_id}" }
+    },
+    {
+      "name": "Sign-in screen is up",
+      "tool": "wait_for",
+      "arguments": { "id": "signIn.email", "timeout_ms": 10000 }
+    },
+    {
+      "name": "Enter email",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Sign in",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "tasks.count", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The app is talking to this run's session",
+      "tool": "moq.assert_session_reached",
+      "arguments": { "timeout_ms": 5000 }
+    },
+    {
+      "name": "The mocked tasks are listed",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "3 tasks" }
+    },
+    {
+      "name": "The list was fetched once, with the token and the session cookie",
+      "tool": "moq.assert_request",
+      "arguments": {
+        "endpoint": "GET /v1/tasks",
+        "times": 1,
+        "headers": [
+          { "name": "Authorization", "scheme": "Bearer" },
+          { "name": "Cookie", "present": true }
+        ],
+        "claims": { "sub": "user-1" }
+      }
+    },
+    { "tool": "moq.mark", "arguments": { "name": "before-delete" } },
+    {
+      "name": "Swipe the newest task away",
+      "tool": "swipe_in_direction",
+      "arguments": { "element_id": "tasks.row.task-025", "direction": "left", "distance": 300, "duration_ms": 400 }
+    },
+    {
+      "name": "Exactly one delete was sent",
+      "tool": "moq.assert_request",
+      "arguments": { "endpoint": "DELETE /v1/tasks/{id}", "times": 1, "since": "before-delete", "timeout_ms": 3000 }
+    },
+    {
+      "name": "One task fewer",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "2 tasks" }
+    },
+    { "name": "No request broke a rule", "tool": "moq.assert_no_rejected_requests" },
+    { "name": "No request missed the bundle", "tool": "moq.assert_no_unmatched_requests" },
+    { "name": "No request left the session", "tool": "moq.assert_all_requests_carry_session" },
+    { "tool": "screenshot", "name": "after-delete" }
+  ]
+}

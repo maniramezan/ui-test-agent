@@ -34,20 +34,31 @@ Rules that follow from this:
      `moq.assert_no_rejected_requests`, `moq.assert_no_unmatched_requests`, `moq.assert_all_requests_carry_session`.
    - Lifecycle: at flow start, attach to or start moqserver and create an isolated session (`POST /_admin/sessions`),
      returning launch-env keys amoo merges into app launches; release the session at flow end.
-   - Codegen: emit `MoqClient` calls for XCUITest (built) and Espresso/Compose (not yet); names and predicates
-     match moqserver's clients exactly.
+   - Codegen: emit `MoqClient` calls for XCUITest (Swift) and for Espresso and Compose (Kotlin); names and
+     predicates match moqserver's clients exactly.
    - The wire contract with amoo is amoo's `docs/flow-extensions.md` (protocol 1, amoo `2579744`): verbs
      `describe`, `flow_start`, `step`, `flow_end`, one JSON request on stdin and one reply on stdout. `describe` lists
      only implemented steps, so a flow using an unbuilt one fails before step 1.
-   - `emit` (amoo `508021a`) is built for XCUITest; Espresso and Compose answer `ok: false`. `amoo generate test`
+   - `emit` (amoo `508021a`) is built for all three frameworks. For XCUITest, `amoo generate test`
      gets `import MoqTestSupport`, a `moqSession` member with a `moq()` accessor, setup lines that open one session per
      test and set the config's launch keys on `app`, a teardown line that closes it, and one `MoqClient` call per
      step. A `moq.mark` becomes a local (`before-delete` → `moqMarkBeforeDelete`) that later `since` arguments
      name. `assert_session_reached` becomes `assertRequest(timeout:)` with no endpoint, which passes once any
-     request reached the session (moqserver `d9ba477`). amoo sends no flow variables with `emit`, so the config is found through
-     `AMOO_EXT_MOQ_CONFIG` only, at generate time; the generated test reads `MOQ_PORT` at run time
-     (`TEST_RUNNER_MOQ_PORT=<port> xcodebuild test`), defaulting to the config's port. The test target must
-     depend on moqserver's `server/MoqTestSupport`, which is a local-path package today.
+     request reached the session (moqserver `d9ba477`). The config is found as `flow_start` finds it: through the
+     flow variable `moq_config`, which amoo sends with `emit` from `7c425ac`, then `AMOO_EXT_MOQ_CONFIG`. The
+     generated test reads `MOQ_PORT` at run time (`TEST_RUNNER_MOQ_PORT=<port> xcodebuild test`), defaulting to
+     the config's port. The test target depends on moqserver's `MoqTestSupport` product, pinned by repository
+     URL and commit (moqserver `79234c0`).
+   - For Espresso and Compose the same calls come out in Kotlin (`com.moqserver.testsupport.MoqClient`, from
+     JitPack as `com.github.ArjangConsulting:moqserver:<10-character sha>`). The setup opens the session on the
+     Android platform's `appHost`, which is where both the app and the test reach the server from a device,
+     and reads the port from the instrumentation argument `MOQ_PORT`
+     (`am instrument -e MOQ_PORT <port>`, or
+     `-Pandroid.testInstrumentationRunnerArguments.MOQ_PORT=<port>` with Gradle).
+     amoo's generated Kotlin test builds the launch intent itself from the flow's literal environment, so the
+     per-test launch keys are added by an `ActivityLifecycleCallback` at `Stage.PRE_ON_CREATE`, just before
+     the activity's `onCreate` reads its intent. That works because instrumented tests run in the app's
+     process. Kotlin needs no `requires`: the client's calls block, and a JUnit test can't suspend.
    - moqserver's request assertions are frozen (server `6b6c130`, clients `5b2ecf7`): `POST /_admin/requests/query`,
      `POST /_admin/requests/mark`, and `times` on the variant route. Specs: its `docs/ADMIN_API.md` ("Request
      queries"), `server/MoqTestSupport/README.md` and `clients/kotlin/README.md`.
@@ -134,11 +145,13 @@ Rules that follow from this:
        A flow with no `auth.*` step declares `"extensions": ["auth"]` to get a session.
      - Without `sessionHeader` the run shares the backend's data, and `flow_end` undoes the first change to each
        account with the opposite route (`disable_user` ↔ `enable_user`); other steps can't be undone.
-     - `emit` is built for this provider and XCUITest: a per-test `authSession` id, the launch keys, a
-       `release` call in teardown that never fails the test, and `try authExpect("<METHOD>", "<path>")` per
-       step. The helpers call the backend synchronously, since XCTest's setUp and tearDown can't be async. The
-       config is found through `AMOO_EXT_AUTH_CONFIG` at generate time. The emulator provider, Espresso and
-       Compose answer `ok: false`.
+     - `emit` is built for this provider, in Swift for XCUITest and Kotlin for Espresso and Compose: a
+       per-test `authSession` id, the launch keys, a `release` call in teardown that never fails the test, and
+       `authExpect("<METHOD>", "<path>")` per step. The helpers call the backend with blocking calls, since
+       neither a JUnit test nor amoo's Kotlin setup can suspend. The config is found through the flow variables
+       `auth_config` and `moq_config`, then `AMOO_EXT_AUTH_CONFIG`. In Kotlin the launch keys reach the app the
+       way the moq extension's do, and `baseURL`'s loopback host becomes `10.0.2.2`, the development machine
+       as an Android emulator reaches it. The `firebase-emulator` provider answers `ok: false`.
 3. **Per-app config**, a JSON file kept in the app's repo (`examples/moq.json` shows the format): how to start or
    attach moqserver, admin auth by reference, launch-env keys for base URL and session, sign-in profile, id catalog
    and test target locations. Today it holds the server (port, admin host, readiness path, admin auth by env var
@@ -225,6 +238,8 @@ examples/server/.build/debug/example-server --port 8081
 moqserver serve --project examples/mocks/example.moqproj --port <port> --capture-request-headers \
   --capture-request-query
 
+cd examples/apps/android && ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+
 cd examples/apps/ios && xcodegen generate
 xcodebuild build -project ExampleApp.xcodeproj -scheme ExampleApp -derivedDataPath build \
   -destination 'platform=iOS Simulator,id=<udid>'
@@ -250,7 +265,24 @@ amoo flow flows/ios/swipe-delete.moq.amoo.json \
 - `cases/<case>.md` is a case as a developer, or their agent, hands it over: a title, `Platforms`, `Backends`
   (`real`, `moq` or both), `Sign-in`, numbered `Steps` in plain language and `Expected` results. The flows and
   generated tests of the same name are what the agent makes of it.
-- Cases so far, each as a flow and a generated test: `swipe-delete` (real, moq), `filter` (real, moq: the query
+- `apps/android/` is the same app in Kotlin and Compose, with the same ids as test tags published as resource
+  ids (`testTagsAsResourceId`; a dialog or bottom sheet is its own window and sets it again). Launch keys arrive
+  as intent extras, and the development machine is `10.0.2.2`, so its flows in `flows/android/` set
+  `base_url` to `http://10.0.2.2:8081`. Its two differences from iOS are platform habits: a swipe deletes the
+  row outright, and an alert's buttons are reported once. The app targets API 36 on purpose: Android 17 keeps
+  an app that targets 37 off local-network addresses, which include `10.0.2.2`, until a permission is granted,
+  and every request then times out.
+- `apps/android/app/src/androidTest/kotlin/` holds the Compose tests amoo generated from `flows/android/`,
+  unedited (`amoo generate test --ui-toolkit compose`). Install both APKs and run them on each device in
+  parallel; name the devices, since `connectedAndroidTest` would also use emulators that belong to someone else:
+
+  ```bash
+  adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
+  adb -s <serial> install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+  adb -s <serial> shell am instrument -w -e MOQ_PORT <port> \
+    com.example.app.test/androidx.test.runner.AndroidJUnitRunner
+  ```
+- Cases so far, each as a flow and a generated test on both platforms: `swipe-delete` (real, moq), `filter` (real, moq: the query
   string is checked by the bundle's value rules and by `query` on `moq.assert_request`), `delete-all` (real, moq: Edit, the
   confirmation alert, the empty state), `account-disabled` (real: `auth.disable_user` mid-session) and
   `load-failure` (moq: a one-shot 500, then Try Again).

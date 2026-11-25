@@ -1,0 +1,103 @@
+{
+  "platform": "android",
+  "terminate_app_at_end": true,
+  "vars": {
+    "app_id": "com.example.app",
+    "moq_config": "moq.json",
+    "email": "user@example.com",
+    "password": "example-password"
+  },
+  "steps": [
+    {
+      "name": "Launch against the mock server, in this run's session",
+      "tool": "device_launch_app",
+      "arguments": { "app_id": "${app_id}" }
+    },
+    {
+      "name": "Sign-in screen is up",
+      "tool": "wait_for",
+      "arguments": { "id": "signIn.email", "timeout_ms": 10000 }
+    },
+    {
+      "name": "Enter email",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Sign in",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "tasks.count", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The tasks are listed",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "3 tasks" }
+    },
+    {
+      "name": "The app reached this run's session",
+      "tool": "moq.assert_session_reached",
+      "arguments": { "timeout_ms": 5000 }
+    },
+    {
+      "name": "Enter edit mode",
+      "tool": "tap_element",
+      "arguments": { "id": "tasks.edit", "expect_id": "tasks.deleteAll" }
+    },
+    {
+      "name": "After the delete the list comes back empty",
+      "tool": "moq.select_variant",
+      "arguments": { "endpoint": "GET /v1/tasks", "variant": "empty" }
+    },
+    {
+      "name": "Mark before deleting",
+      "tool": "moq.mark",
+      "arguments": { "name": "before-delete-all" }
+    },
+    {
+      "name": "Delete All asks first",
+      "tool": "tap_element",
+      "arguments": { "id": "tasks.deleteAll", "expect_contains_text": "This can't be undone." }
+    },
+    {
+      "name": "Let the alert settle",
+      "tool": "wait_for",
+      "arguments": { "idle": true }
+    },
+    {
+      "name": "Confirm",
+      "tool": "tap_element",
+      "arguments": { "id": "tasks.deleteAll.confirm", "expect_id": "tasks.empty", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The list is empty",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.empty" }
+    },
+    {
+      "name": "One delete-all call was made",
+      "tool": "moq.assert_request",
+      "arguments": { "endpoint": "DELETE /v1/tasks", "times": 1, "since": "before-delete-all", "timeout_ms": 3000 }
+    },
+    {
+      "name": "No request was refused",
+      "tool": "moq.assert_no_rejected_requests",
+      "arguments": {}
+    },
+    {
+      "name": "Every request matched an endpoint",
+      "tool": "moq.assert_no_unmatched_requests",
+      "arguments": {}
+    },
+    {
+      "name": "Every request carried the session",
+      "tool": "moq.assert_all_requests_carry_session",
+      "arguments": {}
+    },
+    { "tool": "screenshot", "name": "deleted-all" }
+  ]
+}

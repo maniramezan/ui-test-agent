@@ -1,0 +1,83 @@
+{
+  "platform": "android",
+  "terminate_app_at_end": true,
+  "vars": {
+    "app_id": "com.example.app",
+    "moq_config": "moq.json",
+    "email": "user@example.com",
+    "password": "example-password"
+  },
+  "steps": [
+    {
+      "name": "The first list request fails once",
+      "tool": "moq.select_variant",
+      "arguments": { "endpoint": "GET /v1/tasks", "variant": "serverError", "times": 1 }
+    },
+    {
+      "name": "Launch against the mock server, in this run's session",
+      "tool": "device_launch_app",
+      "arguments": { "app_id": "${app_id}" }
+    },
+    {
+      "name": "Sign-in screen is up",
+      "tool": "wait_for",
+      "arguments": { "id": "signIn.email", "timeout_ms": 10000 }
+    },
+    {
+      "name": "Enter email",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Sign in",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "tasks.error", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The list says the server had a problem",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.error", "contains_text": "The server had a problem (500)" }
+    },
+    {
+      "name": "The app reached this run's session",
+      "tool": "moq.assert_session_reached",
+      "arguments": { "timeout_ms": 5000 }
+    },
+    {
+      "name": "Try again",
+      "tool": "tap_element",
+      "arguments": { "id": "tasks.retry", "expect_id": "tasks.count", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The tasks are listed",
+      "tool": "assert_visible",
+      "arguments": { "id": "tasks.count", "contains_text": "3 tasks" }
+    },
+    {
+      "name": "The list was asked for twice",
+      "tool": "moq.assert_request",
+      "arguments": { "endpoint": "GET /v1/tasks", "times": 2 }
+    },
+    {
+      "name": "No request was refused",
+      "tool": "moq.assert_no_rejected_requests",
+      "arguments": {}
+    },
+    {
+      "name": "Every request matched an endpoint",
+      "tool": "moq.assert_no_unmatched_requests",
+      "arguments": {}
+    },
+    {
+      "name": "Every request carried the session",
+      "tool": "moq.assert_all_requests_carry_session",
+      "arguments": {}
+    },
+    { "tool": "screenshot", "name": "recovered" }
+  ]
+}

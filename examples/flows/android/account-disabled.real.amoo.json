@@ -1,0 +1,74 @@
+{
+  "platform": "android",
+  "terminate_app_at_end": true,
+  "vars": {
+    "app_id": "com.example.app",
+    "auth_config": "moq.json",
+    "base_url": "http://10.0.2.2:8081",
+    "email": "user@example.com",
+    "password": "example-password"
+  },
+  "steps": [
+    {
+      "name": "Launch against the local backend, in this run's session",
+      "tool": "device_launch_app",
+      "arguments": { "app_id": "${app_id}", "environment": "APP_BASE_URL=${base_url}" }
+    },
+    {
+      "name": "Sign-in screen is up",
+      "tool": "wait_for",
+      "arguments": { "id": "signIn.email", "timeout_ms": 10000 }
+    },
+    {
+      "name": "Enter email",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Sign in",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "tasks.count", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The account is disabled while signed in",
+      "tool": "auth.disable_user",
+      "arguments": { "email": "${email}" }
+    },
+    {
+      "name": "Opening a task ends the session",
+      "tool": "tap_element",
+      "arguments": { "id": "tasks.row.task-025", "expect_id": "signIn.error", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "The sign-in screen says why",
+      "tool": "assert_visible",
+      "arguments": { "id": "signIn.error", "contains_text": "This account is disabled" }
+    },
+    {
+      "name": "Enter email again",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.email", "value": "${email}" }
+    },
+    {
+      "name": "Enter password again",
+      "tool": "fill_field",
+      "arguments": { "id": "signIn.password", "value": "${password}" }
+    },
+    {
+      "name": "Signing in again is refused",
+      "tool": "tap_element",
+      "arguments": { "id": "signIn.submit", "expect_id": "signIn.error", "expect_timeout_ms": 10000 }
+    },
+    {
+      "name": "Still on the sign-in screen",
+      "tool": "assert_visible",
+      "arguments": { "id": "signIn.error", "contains_text": "This account is disabled" }
+    },
+    { "tool": "screenshot", "name": "account-disabled" }
+  ]
+}
